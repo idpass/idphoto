@@ -1,0 +1,22 @@
+[package]
+name = "idphoto"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Identity photo processing: crop, resize, and compress photos for ID documents and QR codes"
+
+[features]
+default = []
+face-detection = ["dep:rustface"]
+
+[dependencies]
+image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
+thiserror = "2"
+rustface = { version = "0.1", default-features = false, optional = true }
+
+[[example]]
+name = "debug_face_detection"
+required-features = ["face-detection"]
+
+[dev-dependencies]

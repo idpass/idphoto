@@ -1,0 +1,19 @@
+[package]
+name = "idphoto-python"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Python bindings for idphoto identity photo processing"
+
+[lib]
+name = "idphoto"
+crate-type = ["cdylib"]
+
+[features]
+default = []
+face-detection = ["idphoto-core/face-detection"]
+
+[dependencies]
+idphoto-core = { package = "idphoto", path = "../../core/idphoto" }
+pyo3 = { version = "0.23", features = ["extension-module"] }

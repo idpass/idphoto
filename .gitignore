@@ -1,0 +1,13 @@
+/target
+Cargo.lock
+*.swp
+*.swo
+.DS_Store
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+node_modules/
+pkg/
+tests/fixtures/output/
+tests/fixtures/offcenter/
