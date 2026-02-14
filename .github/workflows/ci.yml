@@ -1,0 +1,168 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  rust:
+    name: Rust (${{ matrix.label }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - label: default
+            features: ""
+          - label: rustface
+            features: "--features rustface"
+          - label: all-features
+            features: "--all-features"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+      - name: Test
+        run: cargo test --workspace ${{ matrix.features }}
+
+  docs:
+    name: Rustdoc
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build documentation
+        env:
+          RUSTDOCFLAGS: -D warnings
+        run: cargo doc --workspace --all-features --no-deps
+
+  msrv:
+    name: MSRV (1.75)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@1.75
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: MSRV workspace check
+        run: cargo check --workspace --all-features
+
+  audit:
+    name: Security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: rustsec/audit-check@v2
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  python:
+    name: Python bindings (3.${{ matrix.python-minor }})
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - python-version: "3.9"
+            python-minor: "9"
+          - python-version: "3.11"
+            python-minor: "11"
+          - python-version: "3.13"
+            python-minor: "13"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install tools
+        run: pip install maturin pytest
+
+      - name: Build and install
+        run: maturin develop --manifest-path bindings/python/Cargo.toml
+
+      - name: Test
+        run: pytest bindings/python/tests/ -v
+
+  wasm:
+    name: WASM bindings
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Check WASM compiles
+        run: cargo check -p idphoto-wasm --target wasm32-unknown-unknown
+
+      - name: Install wasm-bindgen test runner
+        run: cargo install wasm-bindgen-cli --version 0.2.108 --locked
+
+      - name: Run WASM tests
+        env:
+          CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER: wasm-bindgen-test-runner
+        run: cargo test -p idphoto-wasm --target wasm32-unknown-unknown
+
+  wasm-size:
+    name: WASM size check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release WASM
+        run: cargo build -p idphoto-wasm --target wasm32-unknown-unknown --release
+
+      - name: Check size
+        run: |
+          SIZE=$(stat -c%s target/wasm32-unknown-unknown/release/idphoto_wasm.wasm 2>/dev/null || stat -f%z target/wasm32-unknown-unknown/release/idphoto_wasm.wasm)
+          SIZE_KB=$((SIZE / 1024))
+          echo "WASM size: ${SIZE_KB}KB (${SIZE} bytes)" >> "$GITHUB_STEP_SUMMARY"
+          if [ "$SIZE" -gt 2097152 ]; then
+            echo "::error::WASM bundle exceeds 2MB limit: ${SIZE_KB}KB"
+            exit 1
+          fi
+          echo "WASM size OK: ${SIZE_KB}KB"

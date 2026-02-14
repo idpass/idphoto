@@ -11,3 +11,21 @@ node_modules/
 pkg/
 tests/fixtures/output/
 tests/fixtures/offcenter/
+
+# Python
+.venv/
+.pytest_cache/
+*.so
+*.dylib
+*.dll
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+Thumbs.db
+
+# Build artifacts
+uv.lock

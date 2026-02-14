@@ -4,13 +4,28 @@ build-backend = "maturin"
 
 [project]
 name = "idphoto"
+description = "Identity photo processing: crop, resize, and compress photos for ID documents and QR codes"
 requires-python = ">=3.9"
+license = "MIT"
+authors = [
+    { name = "OpenSPP contributors" },
+]
+keywords = ["image", "photo", "compression", "face-detection", "identity"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
     "Programming Language :: Rust",
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
+    "Topic :: Multimedia :: Graphics",
 ]
 dynamic = ["version"]
+readme = "README.md"
+
+[project.urls]
+Homepage = "https://github.com/openspp/idphoto"
+Repository = "https://github.com/openspp/idphoto"
+Issues = "https://github.com/openspp/idphoto/issues"
 
 [tool.maturin]
 manifest-path = "bindings/python/Cargo.toml"
