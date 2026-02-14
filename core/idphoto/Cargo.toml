@@ -2,13 +2,18 @@
 name = "idphoto"
 version.workspace = true
 edition.workspace = true
+rust-version.workspace = true
 license.workspace = true
 repository.workspace = true
+homepage.workspace = true
+authors.workspace = true
 description = "Identity photo processing: crop, resize, and compress photos for ID documents and QR codes"
+keywords = ["image", "photo", "compression", "face-detection", "identity"]
+categories = ["multimedia::images", "encoding"]
 
 [features]
 default = []
-face-detection = ["dep:rustface"]
+rustface = ["dep:rustface"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
@@ -17,6 +22,6 @@ rustface = { version = "0.1", default-features = false, optional = true }
 
 [[example]]
 name = "debug_face_detection"
-required-features = ["face-detection"]
+required-features = ["rustface"]
 
 [dev-dependencies]

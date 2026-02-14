@@ -1,4 +1,4 @@
-use idphoto::{CropMode, OutputFormat, PhotoCompressor, Preset};
+use idphoto::{CropMode, FaceBounds, FaceDetector, OutputFormat, PhotoCompressor, Preset};
 
 const FIXTURE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures");
 
@@ -330,4 +330,101 @@ fn all_presets_work_on_all_samples() {
             );
         }
     }
+}
+
+/// Mock face detector for integration tests.
+struct MockDetector {
+    faces: Vec<FaceBounds>,
+}
+
+impl MockDetector {
+    fn with_face(x: f64, y: f64, width: f64, height: f64) -> Self {
+        Self {
+            faces: vec![FaceBounds {
+                x,
+                y,
+                width,
+                height,
+                confidence: 10.0,
+            }],
+        }
+    }
+}
+
+impl FaceDetector for MockDetector {
+    fn detect(&self, _gray: &[u8], _width: u32, _height: u32) -> Vec<FaceBounds> {
+        self.faces.clone()
+    }
+}
+
+#[test]
+fn custom_face_detector_via_builder() {
+    let input = load_fixture("sample_id_1.png");
+    let detector = MockDetector::with_face(100.0, 150.0, 80.0, 80.0);
+    let result = PhotoCompressor::new(input)
+        .unwrap()
+        .crop_mode(CropMode::FaceDetection)
+        .face_detector(Box::new(detector))
+        .max_dimension(48)
+        .compress()
+        .unwrap();
+
+    assert!(!result.data.is_empty());
+    assert!(
+        result.face_bounds.is_some(),
+        "face_bounds should be populated with custom detector"
+    );
+}
+
+#[test]
+fn face_detection_mode_without_detector_produces_output() {
+    let input = load_fixture("sample_id_2.png");
+    let result = PhotoCompressor::new(input)
+        .unwrap()
+        .crop_mode(CropMode::FaceDetection)
+        .max_dimension(48)
+        .compress()
+        .unwrap();
+
+    // Should succeed regardless of whether rustface feature is compiled in.
+    // Without a detector, falls back to heuristic.
+    assert!(!result.data.is_empty());
+}
+
+#[cfg(feature = "rustface")]
+#[test]
+fn builtin_rustface_backend_detects_faces() {
+    let input = load_fixture("sample_id_1.png");
+    let result = PhotoCompressor::new(input)
+        .unwrap()
+        .preset(Preset::QrCode)
+        .compress()
+        .unwrap();
+
+    // With the rustface feature, the QrCode preset uses FaceDetection mode
+    // and the sample photos should have detectable faces.
+    assert!(!result.data.is_empty());
+    assert!(
+        result.face_bounds.is_some(),
+        "rustface should detect a face in sample_id_1.png"
+    );
+}
+
+#[cfg(feature = "rustface")]
+#[test]
+fn rustface_detector_can_be_used_directly() {
+    let detector = idphoto::RustfaceDetector::new();
+    let input = load_fixture("sample_id_1.png");
+    let result = PhotoCompressor::new(input)
+        .unwrap()
+        .face_detector(Box::new(detector))
+        .crop_mode(CropMode::FaceDetection)
+        .max_dimension(48)
+        .compress()
+        .unwrap();
+
+    assert!(
+        result.face_bounds.is_some(),
+        "explicit RustfaceDetector should detect a face"
+    );
 }

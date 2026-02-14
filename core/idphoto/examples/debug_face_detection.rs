@@ -1,7 +1,9 @@
 //! Debug face detection on sample images to see if faces are found.
 //!
 //! Usage:
-//!   cargo run --example debug_face_detection --features face-detection
+//!   cargo run --example debug_face_detection --features rustface
+
+use idphoto::{FaceDetector, RustfaceDetector};
 
 const FIXTURE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures");
 
@@ -13,12 +15,7 @@ fn main() {
         "sample_id_4.png",
     ];
 
-    let model_data: &[u8] = include_bytes!(concat!(
-        env!("CARGO_MANIFEST_DIR"),
-        "/../../model/seeta_fd_frontal_v1.0.bin"
-    ));
-    let model =
-        rustface::read_model(std::io::Cursor::new(model_data)).expect("failed to load model");
+    let detector = RustfaceDetector::new();
 
     for sample in &samples {
         let input_path = format!("{FIXTURE_DIR}/{sample}");
@@ -29,40 +26,32 @@ fn main() {
 
         println!("=== {sample} ({width}x{height}) ===");
 
-        let mut detector = rustface::create_detector_with_model(model.clone());
-        detector.set_min_face_size(20);
-        detector.set_score_thresh(2.0);
-        detector.set_pyramid_scale_factor(0.8);
-        detector.set_slide_window_step(4, 4);
-
-        let faces = detector.detect(&rustface::ImageData::new(gray.as_raw(), width, height));
+        let faces = detector.detect(gray.as_raw(), width, height);
 
         if faces.is_empty() {
             println!("  NO FACES DETECTED — falling back to heuristic");
         } else {
             println!("  Found {} face(s):", faces.len());
             for (i, face) in faces.iter().enumerate() {
-                let bbox = face.bbox();
                 println!(
-                    "    face {i}: score={:.2}, bbox=({}, {}, {}x{}), center=({}, {})",
-                    face.score(),
-                    bbox.x(),
-                    bbox.y(),
-                    bbox.width(),
-                    bbox.height(),
-                    bbox.x() + bbox.width() as i32 / 2,
-                    bbox.y() + bbox.height() as i32 / 2,
+                    "    face {i}: confidence={:.2}, bbox=({}, {}, {}x{}), center=({}, {})",
+                    face.confidence,
+                    face.x as i32,
+                    face.y as i32,
+                    face.width as i32,
+                    face.height as i32,
+                    (face.x + face.width / 2.0) as i32,
+                    (face.y + face.height / 2.0) as i32,
                 );
             }
 
             // Show what crop the best face would produce
             let best = faces
                 .iter()
-                .max_by(|a, b| a.score().partial_cmp(&b.score()).unwrap())
+                .max_by(|a, b| a.confidence.partial_cmp(&b.confidence).unwrap())
                 .unwrap();
-            let bbox = best.bbox();
-            let face_cx = bbox.x() as f64 + bbox.width() as f64 / 2.0;
-            let face_cy = bbox.y() as f64 + bbox.height() as f64 / 2.0;
+            let face_cx = best.x + best.width / 2.0;
+            let face_cy = best.y + best.height / 2.0;
 
             let portrait_aspect = 3.0 / 4.0;
             let (crop_w, crop_h) = if (width as f64 / height as f64) > portrait_aspect {

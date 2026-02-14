@@ -14,13 +14,25 @@
 //!     .unwrap();
 //! println!("Compressed: {} bytes", result.data.len());
 //! ```
+#![warn(missing_docs)]
 
 mod compress;
 mod crop;
 mod error;
+/// Face detection traits and data types.
+pub mod face_detector;
+#[cfg(feature = "rustface")]
+/// Built-in SeetaFace-based face detector backend.
+pub mod rustface_backend;
 mod webp_strip;
 
+/// Error type returned by idphoto operations.
 pub use error::IdPhotoError;
+/// Face detection trait and face bounding-box type.
+pub use face_detector::{FaceBounds, FaceDetector};
+#[cfg(feature = "rustface")]
+/// Built-in detector that loads the bundled SeetaFace model.
+pub use rustface_backend::RustfaceDetector;
 
 /// How to crop the input image before resizing.
 #[derive(Debug, Clone, Default)]
@@ -30,7 +42,6 @@ pub enum CropMode {
     Heuristic,
 
     /// Use face detection to center on the face, with fallback to Heuristic.
-    #[cfg(feature = "face-detection")]
     FaceDetection,
 
     /// No crop — resize maintaining the original aspect ratio.
@@ -65,6 +76,9 @@ pub struct CompressedPhoto {
 
     /// Size of the original input in bytes.
     pub original_size: usize,
+
+    /// Bounding box of the detected face in output image coordinates, if any.
+    pub face_bounds: Option<FaceBounds>,
 }
 
 /// Result of a `compress_to_fit` operation with byte budget targeting.
@@ -121,16 +135,16 @@ pub enum Preset {
     Display,
 }
 
-/// Builder for compressing identity photos.
-///
-/// Decodes the input image on construction, then applies crop, resize,
-/// and compression with configurable parameters.
 /// Default face margin for ID-photo framing (face + hair + shoulders).
 const FACE_MARGIN_ID_PHOTO: f32 = 2.0;
 
 /// Tight face margin for algorithmic face matching (face only).
 const FACE_MARGIN_MATCH: f32 = 1.3;
 
+/// Builder for compressing identity photos.
+///
+/// Decodes the input image on construction, then applies crop, resize,
+/// and compression with configurable parameters.
 pub struct PhotoCompressor {
     input: Vec<u8>,
     max_dimension: u32,
@@ -141,19 +155,15 @@ pub struct PhotoCompressor {
     /// Multiplier for face-detection crop: crop_height = face_height × face_margin.
     /// Higher values include more context (hair, shoulders), lower values zoom tighter.
     face_margin: f32,
+    /// User-provided face detector. When `None`, the built-in rustface backend is
+    /// used (if compiled with the `rustface` feature), or detection is skipped.
+    detector: Option<Box<dyn FaceDetector>>,
 }
 
 impl PhotoCompressor {
-    /// The best available crop mode: face detection when compiled in, heuristic otherwise.
+    /// The default crop mode: face detection with automatic fallback to heuristic.
     fn default_crop_mode() -> CropMode {
-        #[cfg(feature = "face-detection")]
-        {
-            CropMode::FaceDetection
-        }
-        #[cfg(not(feature = "face-detection"))]
-        {
-            CropMode::Heuristic
-        }
+        CropMode::FaceDetection
     }
 
     /// Create a new compressor from raw image bytes (JPEG, PNG, or WebP).
@@ -166,9 +176,10 @@ impl PhotoCompressor {
             max_dimension: 48,
             quality: 0.6,
             grayscale: false,
-            crop_mode: CropMode::default(),
+            crop_mode: Self::default_crop_mode(),
             format: OutputFormat::default(),
             face_margin: FACE_MARGIN_ID_PHOTO,
+            detector: None,
         })
     }
 
@@ -251,7 +262,7 @@ impl PhotoCompressor {
         self
     }
 
-    /// Set the crop mode (default: `CropMode::Heuristic`).
+    /// Set the crop mode (default: `CropMode::FaceDetection`).
     pub fn crop_mode(mut self, mode: CropMode) -> Self {
         self.crop_mode = mode;
         self
@@ -276,6 +287,32 @@ impl PhotoCompressor {
         self
     }
 
+    /// Provide a custom face detector implementation.
+    ///
+    /// When set, this detector is used instead of the built-in rustface backend.
+    /// This allows integrating ONNX, dlib, or any other face detection engine.
+    ///
+    /// ```no_run
+    /// use idphoto::{PhotoCompressor, FaceDetector, FaceBounds};
+    ///
+    /// struct MyDetector;
+    /// impl FaceDetector for MyDetector {
+    ///     fn detect(&self, gray: &[u8], width: u32, height: u32) -> Vec<FaceBounds> {
+    ///         // Your detection logic here
+    ///         vec![]
+    ///     }
+    /// }
+    ///
+    /// let bytes = std::fs::read("photo.jpg").unwrap();
+    /// let result = PhotoCompressor::new(bytes).unwrap()
+    ///     .face_detector(Box::new(MyDetector))
+    ///     .compress().unwrap();
+    /// ```
+    pub fn face_detector(mut self, detector: Box<dyn FaceDetector>) -> Self {
+        self.detector = Some(detector);
+        self
+    }
+
     /// Compress the photo with the configured settings.
     pub fn compress(self) -> Result<CompressedPhoto, IdPhotoError> {
         if self.max_dimension == 0 {
@@ -293,6 +330,7 @@ impl PhotoCompressor {
             &self.crop_mode,
             &self.format,
             self.face_margin,
+            self.detector.as_deref(),
         )
     }
 
@@ -322,6 +360,7 @@ impl PhotoCompressor {
                 &self.crop_mode,
                 &self.format,
                 self.face_margin,
+                self.detector.as_deref(),
             )?;
 
             if result.data.len() <= max_bytes {
@@ -350,6 +389,7 @@ impl PhotoCompressor {
             &self.crop_mode,
             &self.format,
             self.face_margin,
+            self.detector.as_deref(),
         )?;
 
         Ok(FitResult {

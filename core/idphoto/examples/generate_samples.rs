@@ -1,7 +1,7 @@
 //! Generate all preset versions for every sample image.
 //!
 //! Usage:
-//!   cargo run --example generate_samples [--features face-detection]
+//!   cargo run --example generate_samples [--features rustface]
 //!
 //! Output goes to `tests/fixtures/output/`.
 
