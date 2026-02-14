@@ -51,6 +51,7 @@ impl From<Preset> for idphoto::Preset {
 #[derive(uniffi::Enum)]
 pub enum CropMode {
     Heuristic,
+    FaceDetection,
     None,
 }
 
@@ -58,6 +59,7 @@ impl From<CropMode> for idphoto::CropMode {
     fn from(mode: CropMode) -> Self {
         match mode {
             CropMode::Heuristic => idphoto::CropMode::Heuristic,
+            CropMode::FaceDetection => idphoto::CropMode::FaceDetection,
             CropMode::None => idphoto::CropMode::None,
         }
     }
@@ -88,12 +90,22 @@ impl From<idphoto::OutputFormat> for OutputFormat {
 }
 
 #[derive(uniffi::Record)]
+pub struct FaceBounds {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+    pub confidence: f64,
+}
+
+#[derive(uniffi::Record)]
 pub struct CompressedPhoto {
     pub data: Vec<u8>,
     pub format: OutputFormat,
     pub width: u32,
     pub height: u32,
     pub original_size: u64,
+    pub face_bounds: Option<FaceBounds>,
 }
 
 #[derive(uniffi::Record)]
@@ -101,6 +113,16 @@ pub struct FitResult {
     pub photo: CompressedPhoto,
     pub quality_used: f32,
     pub reached_target: bool,
+}
+
+fn convert_face_bounds(bounds: &idphoto::FaceBounds) -> FaceBounds {
+    FaceBounds {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        confidence: bounds.confidence,
+    }
 }
 
 /// Compress with a preset configuration.
@@ -119,6 +141,7 @@ pub fn compress_with_preset(
         width: result.width,
         height: result.height,
         original_size: result.original_size as u64,
+        face_bounds: result.face_bounds.as_ref().map(convert_face_bounds),
     })
 }
 
@@ -131,6 +154,7 @@ pub fn compress(
     grayscale: bool,
     crop_mode: CropMode,
     format: OutputFormat,
+    face_margin: f32,
 ) -> Result<CompressedPhoto, IdPhotoError> {
     let result = idphoto::PhotoCompressor::new(input)?
         .max_dimension(max_dimension)
@@ -138,6 +162,7 @@ pub fn compress(
         .grayscale(grayscale)
         .crop_mode(crop_mode.into())
         .format(format.into())
+        .face_margin(face_margin)
         .compress()?;
 
     Ok(CompressedPhoto {
@@ -146,6 +171,7 @@ pub fn compress(
         width: result.width,
         height: result.height,
         original_size: result.original_size as u64,
+        face_bounds: result.face_bounds.as_ref().map(convert_face_bounds),
     })
 }
 
@@ -167,6 +193,7 @@ pub fn compress_to_fit_with_preset(
             width: result.photo.width,
             height: result.photo.height,
             original_size: result.photo.original_size as u64,
+            face_bounds: result.photo.face_bounds.as_ref().map(convert_face_bounds),
         },
         quality_used: result.quality_used,
         reached_target: result.reached_target,
@@ -182,12 +209,14 @@ pub fn compress_to_fit(
     grayscale: bool,
     crop_mode: CropMode,
     format: OutputFormat,
+    face_margin: f32,
 ) -> Result<FitResult, IdPhotoError> {
     let result = idphoto::PhotoCompressor::new(input)?
         .max_dimension(max_dimension)
         .grayscale(grayscale)
         .crop_mode(crop_mode.into())
         .format(format.into())
+        .face_margin(face_margin)
         .compress_to_fit(max_bytes as usize)?;
 
     Ok(FitResult {
@@ -197,6 +226,7 @@ pub fn compress_to_fit(
             width: result.photo.width,
             height: result.photo.height,
             original_size: result.photo.original_size as u64,
+            face_bounds: result.photo.face_bounds.as_ref().map(convert_face_bounds),
         },
         quality_used: result.quality_used,
         reached_target: result.reached_target,

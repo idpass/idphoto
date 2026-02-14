@@ -1,12 +1,50 @@
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
+pub struct WasmFaceBounds {
+    x: f64,
+    y: f64,
+    width: f64,
+    height: f64,
+    confidence: f64,
+}
+
+#[wasm_bindgen]
+impl WasmFaceBounds {
+    #[wasm_bindgen(getter)]
+    pub fn x(&self) -> f64 {
+        self.x
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn y(&self) -> f64 {
+        self.y
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn width(&self) -> f64 {
+        self.width
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn height(&self) -> f64 {
+        self.height
+    }
+
+    #[wasm_bindgen(getter)]
+    pub fn confidence(&self) -> f64 {
+        self.confidence
+    }
+}
+
+#[wasm_bindgen]
 pub struct WasmCompressedPhoto {
     data: Vec<u8>,
     format: String,
     width: u32,
     height: u32,
     original_size: usize,
+    face_bounds: Option<WasmFaceBounds>,
 }
 
 #[wasm_bindgen]
@@ -35,6 +73,17 @@ impl WasmCompressedPhoto {
     pub fn original_size(&self) -> usize {
         self.original_size
     }
+
+    #[wasm_bindgen(getter, js_name = "faceBounds")]
+    pub fn face_bounds(&self) -> Option<WasmFaceBounds> {
+        self.face_bounds.as_ref().map(|fb| WasmFaceBounds {
+            x: fb.x,
+            y: fb.y,
+            width: fb.width,
+            height: fb.height,
+            confidence: fb.confidence,
+        })
+    }
 }
 
 #[wasm_bindgen]
@@ -54,6 +103,13 @@ impl WasmFitResult {
             width: self.photo.width,
             height: self.photo.height,
             original_size: self.photo.original_size,
+            face_bounds: self.photo.face_bounds.as_ref().map(|fb| WasmFaceBounds {
+                x: fb.x,
+                y: fb.y,
+                width: fb.width,
+                height: fb.height,
+                confidence: fb.confidence,
+            }),
         }
     }
 
@@ -89,7 +145,6 @@ fn string_to_crop_mode(mode: &str) -> Result<idphoto::CropMode, JsError> {
     match mode {
         "heuristic" => Ok(idphoto::CropMode::Heuristic),
         "none" => Ok(idphoto::CropMode::None),
-        #[cfg(feature = "face-detection")]
         "face-detection" => Ok(idphoto::CropMode::FaceDetection),
         _ => Err(JsError::new(&format!("unknown crop mode: {mode}"))),
     }
@@ -103,6 +158,16 @@ fn string_to_format(format: &str) -> Result<idphoto::OutputFormat, JsError> {
     }
 }
 
+fn face_bounds_to_wasm(bounds: &idphoto::FaceBounds) -> WasmFaceBounds {
+    WasmFaceBounds {
+        x: bounds.x,
+        y: bounds.y,
+        width: bounds.width,
+        height: bounds.height,
+        confidence: bounds.confidence,
+    }
+}
+
 /// Compress an identity photo with the given options.
 ///
 /// @param input - Raw image bytes (JPEG, PNG, or WebP)
@@ -112,6 +177,8 @@ fn string_to_format(format: &str) -> Result<idphoto::OutputFormat, JsError> {
 /// @param grayscale - Convert to grayscale (overrides preset)
 /// @param crop_mode - "heuristic", "none", or "face-detection" (overrides preset)
 /// @param format - "webp" or "jpeg" (overrides preset)
+/// @param face_margin - Face detection crop margin (overrides preset, default: 2.0)
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen]
 pub fn compress(
     input: Vec<u8>,
@@ -121,6 +188,7 @@ pub fn compress(
     grayscale: Option<bool>,
     crop_mode: Option<String>,
     format: Option<String>,
+    face_margin: Option<f32>,
 ) -> Result<WasmCompressedPhoto, JsError> {
     let mut compressor =
         idphoto::PhotoCompressor::new(input).map_err(|e| JsError::new(&e.to_string()))?;
@@ -143,6 +211,9 @@ pub fn compress(
     if let Some(fmt) = format {
         compressor = compressor.format(string_to_format(&fmt)?);
     }
+    if let Some(margin) = face_margin {
+        compressor = compressor.face_margin(margin);
+    }
 
     let result = compressor
         .compress()
@@ -154,6 +225,7 @@ pub fn compress(
         width: result.width,
         height: result.height,
         original_size: result.original_size,
+        face_bounds: result.face_bounds.as_ref().map(face_bounds_to_wasm),
     })
 }
 
@@ -161,6 +233,7 @@ pub fn compress(
 ///
 /// Uses binary search over quality (8 iterations) to find the highest quality
 /// that produces output within `max_bytes`.
+#[allow(clippy::too_many_arguments)]
 #[wasm_bindgen(js_name = "compressToFit")]
 pub fn compress_to_fit(
     input: Vec<u8>,
@@ -170,6 +243,7 @@ pub fn compress_to_fit(
     grayscale: Option<bool>,
     crop_mode: Option<String>,
     format: Option<String>,
+    face_margin: Option<f32>,
 ) -> Result<WasmFitResult, JsError> {
     let mut compressor =
         idphoto::PhotoCompressor::new(input).map_err(|e| JsError::new(&e.to_string()))?;
@@ -189,6 +263,9 @@ pub fn compress_to_fit(
     if let Some(fmt) = format {
         compressor = compressor.format(string_to_format(&fmt)?);
     }
+    if let Some(margin) = face_margin {
+        compressor = compressor.face_margin(margin);
+    }
 
     let result = compressor
         .compress_to_fit(max_bytes)
@@ -201,6 +278,7 @@ pub fn compress_to_fit(
             width: result.photo.width,
             height: result.photo.height,
             original_size: result.photo.original_size,
+            face_bounds: result.photo.face_bounds.as_ref().map(face_bounds_to_wasm),
         },
         quality_used: result.quality_used,
         reached_target: result.reached_target,

@@ -5,14 +5,16 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Python bindings for idphoto identity photo processing"
+publish = false
 
 [lib]
 name = "idphoto"
 crate-type = ["cdylib"]
+doc = false
 
 [features]
 default = []
-face-detection = ["idphoto-core/face-detection"]
+rustface = ["idphoto-core/rustface"]
 
 [dependencies]
 idphoto-core = { package = "idphoto", path = "../../core/idphoto" }

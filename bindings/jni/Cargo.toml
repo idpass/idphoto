@@ -5,14 +5,22 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "Kotlin/Java bindings for idphoto identity photo processing"
+publish = false
 
 [lib]
-crate-type = ["cdylib", "staticlib"]
+crate-type = ["cdylib", "staticlib", "lib"]
+
+[features]
+default = []
+rustface = ["idphoto/rustface"]
 
 [dependencies]
 idphoto = { path = "../../core/idphoto" }
 thiserror = "2"
 uniffi = { version = "0.29" }
+
+[dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 
 [build-dependencies]
 uniffi = { version = "0.29", features = ["build"] }

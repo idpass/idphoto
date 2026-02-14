@@ -5,13 +5,14 @@ edition.workspace = true
 license.workspace = true
 repository.workspace = true
 description = "WASM bindings for idphoto identity photo processing"
+publish = false
 
 [lib]
-crate-type = ["cdylib"]
+crate-type = ["cdylib", "rlib"]
 
 [features]
 default = []
-face-detection = ["idphoto/face-detection"]
+rustface = ["idphoto/rustface"]
 
 [dependencies]
 idphoto = { path = "../../core/idphoto" }
@@ -21,4 +22,5 @@ serde = { version = "1", features = ["derive"] }
 serde-wasm-bindgen = "0.6"
 
 [dev-dependencies]
+image = { version = "0.25", default-features = false, features = ["png"] }
 wasm-bindgen-test = "0.3"

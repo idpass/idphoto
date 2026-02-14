@@ -28,7 +28,6 @@ fn string_to_crop_mode(mode: &str) -> PyResult<CropMode> {
     match mode {
         "heuristic" => Ok(CropMode::Heuristic),
         "none" => Ok(CropMode::None),
-        #[cfg(feature = "face-detection")]
         "face-detection" => Ok(CropMode::FaceDetection),
         _ => Err(PyValueError::new_err(format!("unknown crop mode: {mode}"))),
     }
@@ -42,6 +41,19 @@ fn string_to_format(format: &str) -> PyResult<OutputFormat> {
     }
 }
 
+fn face_bounds_to_dict<'py>(
+    py: Python<'py>,
+    bounds: &idphoto_core::FaceBounds,
+) -> PyResult<Bound<'py, PyDict>> {
+    let dict = PyDict::new(py);
+    dict.set_item("x", bounds.x)?;
+    dict.set_item("y", bounds.y)?;
+    dict.set_item("width", bounds.width)?;
+    dict.set_item("height", bounds.height)?;
+    dict.set_item("confidence", bounds.confidence)?;
+    Ok(dict)
+}
+
 /// Compress an identity photo.
 ///
 /// Args:
@@ -52,11 +64,13 @@ fn string_to_format(format: &str) -> PyResult<OutputFormat> {
 ///     grayscale: Convert to grayscale (overrides preset, default: False)
 ///     crop_mode: "heuristic", "none", or "face-detection" (overrides preset)
 ///     format: "webp" or "jpeg" (overrides preset)
+///     face_margin: Face detection crop margin (overrides preset, default: 2.0)
 ///
 /// Returns:
-///     dict with keys: data (bytes), format (str), width (int), height (int), original_size (int)
+///     dict with keys: data (bytes), format (str), width (int), height (int),
+///                     original_size (int), face_bounds (dict or None)
 #[pyfunction]
-#[pyo3(signature = (input, *, preset=None, max_dimension=None, quality=None, grayscale=None, crop_mode=None, format=None))]
+#[pyo3(signature = (input, *, preset=None, max_dimension=None, quality=None, grayscale=None, crop_mode=None, format=None, face_margin=None))]
 #[allow(clippy::too_many_arguments)]
 fn compress(
     py: Python<'_>,
@@ -67,6 +81,7 @@ fn compress(
     grayscale: Option<bool>,
     crop_mode: Option<&str>,
     format: Option<&str>,
+    face_margin: Option<f32>,
 ) -> PyResult<Py<PyDict>> {
     let mut compressor = PhotoCompressor::new(input).map_err(to_py_err)?;
 
@@ -88,6 +103,9 @@ fn compress(
     if let Some(fmt) = format {
         compressor = compressor.format(string_to_format(fmt)?);
     }
+    if let Some(margin) = face_margin {
+        compressor = compressor.face_margin(margin);
+    }
 
     let result = compressor.compress().map_err(to_py_err)?;
 
@@ -97,6 +115,14 @@ fn compress(
     dict.set_item("width", result.width)?;
     dict.set_item("height", result.height)?;
     dict.set_item("original_size", result.original_size)?;
+    dict.set_item(
+        "face_bounds",
+        result
+            .face_bounds
+            .as_ref()
+            .map(|fb| face_bounds_to_dict(py, fb))
+            .transpose()?,
+    )?;
     Ok(dict.into())
 }
 
@@ -113,12 +139,14 @@ fn compress(
 ///     grayscale: Convert to grayscale (overrides preset)
 ///     crop_mode: "heuristic", "none", or "face-detection" (overrides preset)
 ///     format: "webp" or "jpeg" (overrides preset)
+///     face_margin: Face detection crop margin (overrides preset, default: 2.0)
 ///
 /// Returns:
 ///     dict with keys: data (bytes), format (str), width (int), height (int),
-///                     original_size (int), quality_used (float), reached_target (bool)
+///                     original_size (int), quality_used (float), reached_target (bool),
+///                     face_bounds (dict or None)
 #[pyfunction]
-#[pyo3(signature = (input, max_bytes, *, preset=None, max_dimension=None, grayscale=None, crop_mode=None, format=None))]
+#[pyo3(signature = (input, max_bytes, *, preset=None, max_dimension=None, grayscale=None, crop_mode=None, format=None, face_margin=None))]
 #[allow(clippy::too_many_arguments)]
 fn compress_to_fit(
     py: Python<'_>,
@@ -129,6 +157,7 @@ fn compress_to_fit(
     grayscale: Option<bool>,
     crop_mode: Option<&str>,
     format: Option<&str>,
+    face_margin: Option<f32>,
 ) -> PyResult<Py<PyDict>> {
     let mut compressor = PhotoCompressor::new(input).map_err(to_py_err)?;
 
@@ -147,6 +176,9 @@ fn compress_to_fit(
     if let Some(fmt) = format {
         compressor = compressor.format(string_to_format(fmt)?);
     }
+    if let Some(margin) = face_margin {
+        compressor = compressor.face_margin(margin);
+    }
 
     let result = compressor.compress_to_fit(max_bytes).map_err(to_py_err)?;
 
@@ -158,6 +190,15 @@ fn compress_to_fit(
     dict.set_item("original_size", result.photo.original_size)?;
     dict.set_item("quality_used", result.quality_used)?;
     dict.set_item("reached_target", result.reached_target)?;
+    dict.set_item(
+        "face_bounds",
+        result
+            .photo
+            .face_bounds
+            .as_ref()
+            .map(|fb| face_bounds_to_dict(py, fb))
+            .transpose()?,
+    )?;
     Ok(dict.into())
 }
 
