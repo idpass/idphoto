@@ -1,0 +1,92 @@
+/* Custom CSS for idphoto documentation */
+
+.md-typeset {
+  font-size: 0.92rem;
+  line-height: 1.7;
+}
+
+.md-typeset h1 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.md-typeset h2 {
+  border-bottom: 2px solid var(--md-primary-fg-color);
+  padding-bottom: 0.4rem;
+}
+
+.hero-section {
+  background: linear-gradient(135deg, #303f9f 0%, #5c6bc0 100%);
+  color: #fff;
+  border-radius: 0.75rem;
+  padding: 2.5rem 1.5rem;
+  margin: 1.5rem 0 2rem;
+}
+
+.hero-section h1,
+.hero-section p {
+  color: #fff;
+}
+
+.hero-section .hero-title {
+  font-size: 1.9rem;
+  line-height: 1.2;
+  margin: 0 0 0.75rem;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+
+.feature-card {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  background: var(--md-default-bg-color);
+}
+
+.feature-card h3 {
+  margin-top: 0;
+  margin-bottom: 0.5rem;
+  color: var(--md-primary-fg-color);
+}
+
+.pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+  justify-content: center;
+  background: var(--md-code-bg-color);
+  border-radius: 0.6rem;
+  padding: 1rem;
+  margin: 1.2rem 0;
+}
+
+.pipeline-step {
+  background: var(--md-primary-fg-color);
+  color: #fff;
+  border-radius: 0.4rem;
+  padding: 0.35rem 0.65rem;
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.pipeline-arrow {
+  color: var(--md-default-fg-color--light);
+  font-weight: 700;
+}
+
+.mermaid {
+  display: flex;
+  justify-content: center;
+}
+
+.mermaid svg {
+  width: min(900px, 100%);
+  max-width: 100%;
+  height: auto;
+}

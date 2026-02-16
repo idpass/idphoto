@@ -1,0 +1,93 @@
+site_name: idphoto
+site_description: Identity photo processing library for ID documents and QR codes
+site_url: https://idpass.github.io/idphoto/
+repo_url: https://github.com/idpass/idphoto
+repo_name: idpass/idphoto
+edit_uri: edit/main/docs/
+
+docs_dir: docs
+
+theme:
+  name: material
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+    - content.action.edit
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/idpass/idphoto
+
+extra_css:
+  - assets/css/extra.css
+extra_javascript:
+  - https://unpkg.com/mermaid@10.9.1/dist/mermaid.min.js
+  - assets/js/mermaid-init.js
+
+dev_addr: 127.0.0.1:8001
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Core Concepts:
+      - Processing Pipeline: core/pipeline.md
+      - Cropping Modes: core/cropping.md
+      - Presets and Byte Budgets: core/presets.md
+      - Face Detection: core/face-detection.md
+  - SDKs:
+      - Rust: sdk/rust.md
+      - Python: sdk/python.md
+      - JavaScript (WASM): sdk/wasm.md
+      - Kotlin/Java (JNI): sdk/jni.md
+  - Testing and Fixtures: testing.md
+  - Contributing: contributing.md

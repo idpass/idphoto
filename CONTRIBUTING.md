@@ -12,7 +12,7 @@ Thanks for contributing to `idphoto`.
 
 ```sh
 git lfs install
-git clone https://github.com/openspp/idphoto.git
+git clone https://github.com/idpass/idphoto.git
 cd idphoto
 ```
 

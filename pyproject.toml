@@ -23,9 +23,9 @@ dynamic = ["version"]
 readme = "README.md"
 
 [project.urls]
-Homepage = "https://github.com/openspp/idphoto"
-Repository = "https://github.com/openspp/idphoto"
-Issues = "https://github.com/openspp/idphoto/issues"
+Homepage = "https://github.com/idpass/idphoto"
+Repository = "https://github.com/idpass/idphoto"
+Issues = "https://github.com/idpass/idphoto/issues"
 
 [tool.maturin]
 manifest-path = "bindings/python/Cargo.toml"

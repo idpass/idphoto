@@ -108,7 +108,7 @@ console.log(`Quality: ${fit.qualityUsed}, Reached: ${fit.reachedTarget}`);
 
 ```sh
 git lfs install
-git clone https://github.com/openspp/idphoto.git
+git clone https://github.com/idpass/idphoto.git
 cd idphoto
 ```
 
@@ -152,6 +152,19 @@ cargo test --workspace --all-features
 pip install maturin pytest
 maturin develop --manifest-path bindings/python/Cargo.toml
 pytest bindings/python/tests/ -v
+```
+
+## Documentation Site
+
+```sh
+python3 -m pip install -r docs/requirements.txt
+mkdocs serve
+```
+
+Build static output:
+
+```sh
+mkdocs build --strict
 ```
 
 ## Custom Face Detector
