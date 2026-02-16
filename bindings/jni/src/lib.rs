@@ -10,8 +10,8 @@ pub enum IdPhotoError {
     ZeroDimensions,
     #[error("failed to encode image: {message}")]
     EncodeError { message: String },
-    #[error("invalid quality value")]
-    InvalidQuality,
+    #[error("invalid quality value: {value}")]
+    InvalidQuality { value: f32 },
     #[error("max dimension must be > 0")]
     InvalidMaxDimension,
 }
@@ -23,13 +23,13 @@ impl From<idphoto::IdPhotoError> for IdPhotoError {
             idphoto::IdPhotoError::UnsupportedFormat => IdPhotoError::UnsupportedFormat,
             idphoto::IdPhotoError::ZeroDimensions => IdPhotoError::ZeroDimensions,
             idphoto::IdPhotoError::EncodeError(msg) => IdPhotoError::EncodeError { message: msg },
-            idphoto::IdPhotoError::InvalidQuality(_) => IdPhotoError::InvalidQuality,
+            idphoto::IdPhotoError::InvalidQuality(q) => IdPhotoError::InvalidQuality { value: q },
             idphoto::IdPhotoError::InvalidMaxDimension => IdPhotoError::InvalidMaxDimension,
         }
     }
 }
 
-#[derive(uniffi::Enum)]
+#[derive(Debug, uniffi::Enum)]
 pub enum Preset {
     QrCode,
     QrCodeMatch,
@@ -48,7 +48,7 @@ impl From<Preset> for idphoto::Preset {
     }
 }
 
-#[derive(uniffi::Enum)]
+#[derive(Debug, uniffi::Enum)]
 pub enum CropMode {
     Heuristic,
     FaceDetection,
@@ -65,7 +65,7 @@ impl From<CropMode> for idphoto::CropMode {
     }
 }
 
-#[derive(uniffi::Enum)]
+#[derive(Debug, uniffi::Enum)]
 pub enum OutputFormat {
     Webp,
     Jpeg,
@@ -89,7 +89,7 @@ impl From<idphoto::OutputFormat> for OutputFormat {
     }
 }
 
-#[derive(uniffi::Record)]
+#[derive(Debug, uniffi::Record)]
 pub struct FaceBounds {
     pub x: f64,
     pub y: f64,
@@ -98,7 +98,7 @@ pub struct FaceBounds {
     pub confidence: f64,
 }
 
-#[derive(uniffi::Record)]
+#[derive(Debug, uniffi::Record)]
 pub struct CompressedPhoto {
     pub data: Vec<u8>,
     pub format: OutputFormat,
@@ -108,11 +108,24 @@ pub struct CompressedPhoto {
     pub face_bounds: Option<FaceBounds>,
 }
 
-#[derive(uniffi::Record)]
+#[derive(Debug, uniffi::Record)]
 pub struct FitResult {
     pub photo: CompressedPhoto,
     pub quality_used: f32,
     pub reached_target: bool,
+}
+
+/// Options for configuring photo compression. All fields are optional;
+/// unset fields use either the preset defaults or the library defaults.
+#[derive(Debug, uniffi::Record)]
+pub struct CompressOptions {
+    pub preset: Option<Preset>,
+    pub max_dimension: Option<u32>,
+    pub quality: Option<f32>,
+    pub grayscale: Option<bool>,
+    pub crop_mode: Option<CropMode>,
+    pub format: Option<OutputFormat>,
+    pub face_margin: Option<f32>,
 }
 
 fn convert_face_bounds(bounds: &idphoto::FaceBounds) -> FaceBounds {
@@ -125,109 +138,97 @@ fn convert_face_bounds(bounds: &idphoto::FaceBounds) -> FaceBounds {
     }
 }
 
-/// Compress with a preset configuration.
-#[uniffi::export]
-pub fn compress_with_preset(
-    input: Vec<u8>,
-    preset: Preset,
-) -> Result<CompressedPhoto, IdPhotoError> {
-    let result = idphoto::PhotoCompressor::new(input)?
-        .preset(preset.into())
-        .compress()?;
-
-    Ok(CompressedPhoto {
+fn convert_compressed_photo(result: idphoto::CompressedPhoto) -> CompressedPhoto {
+    CompressedPhoto {
         data: result.data,
         format: result.format.into(),
         width: result.width,
         height: result.height,
         original_size: result.original_size as u64,
         face_bounds: result.face_bounds.as_ref().map(convert_face_bounds),
-    })
+    }
 }
 
-/// Compress with full control over all parameters.
+/// Apply `CompressOptions` to a `PhotoCompressor`, returning the configured compressor.
+/// Preset is applied first (if set), then individual overrides.
+fn apply_options(
+    compressor: idphoto::PhotoCompressor,
+    options: CompressOptions,
+) -> idphoto::PhotoCompressor {
+    let compressor = match options.preset {
+        Some(preset) => compressor.preset(preset.into()),
+        None => compressor,
+    };
+    let compressor = match options.max_dimension {
+        Some(dim) => compressor.max_dimension(dim),
+        None => compressor,
+    };
+    let compressor = match options.quality {
+        Some(q) => compressor.quality(q),
+        None => compressor,
+    };
+    let compressor = match options.grayscale {
+        Some(g) => compressor.grayscale(g),
+        None => compressor,
+    };
+    let compressor = match options.crop_mode {
+        Some(mode) => compressor.crop_mode(mode.into()),
+        None => compressor,
+    };
+    let compressor = match options.format {
+        Some(fmt) => compressor.format(fmt.into()),
+        None => compressor,
+    };
+    let compressor = match options.face_margin {
+        Some(margin) => compressor.face_margin(margin),
+        None => compressor,
+    };
+    compressor
+}
+
+/// Returns a `CompressOptions` with all fields set to `None`,
+/// suitable as a starting point for customisation.
 #[uniffi::export]
-pub fn compress(
-    input: Vec<u8>,
-    max_dimension: u32,
-    quality: f32,
-    grayscale: bool,
-    crop_mode: CropMode,
-    format: OutputFormat,
-    face_margin: f32,
-) -> Result<CompressedPhoto, IdPhotoError> {
-    let result = idphoto::PhotoCompressor::new(input)?
-        .max_dimension(max_dimension)
-        .quality(quality)
-        .grayscale(grayscale)
-        .crop_mode(crop_mode.into())
-        .format(format.into())
-        .face_margin(face_margin)
-        .compress()?;
-
-    Ok(CompressedPhoto {
-        data: result.data,
-        format: result.format.into(),
-        width: result.width,
-        height: result.height,
-        original_size: result.original_size as u64,
-        face_bounds: result.face_bounds.as_ref().map(convert_face_bounds),
-    })
+pub fn default_compress_options() -> CompressOptions {
+    CompressOptions {
+        preset: None,
+        max_dimension: None,
+        quality: None,
+        grayscale: None,
+        crop_mode: None,
+        format: None,
+        face_margin: None,
+    }
 }
 
-/// Compress to fit within a byte budget using a preset.
+/// Compress a photo with the given options.
+///
+/// All option fields are optional. Set `preset` to use a pre-configured profile,
+/// then override individual fields as needed. Unset fields use library defaults.
 #[uniffi::export]
-pub fn compress_to_fit_with_preset(
-    input: Vec<u8>,
-    max_bytes: u64,
-    preset: Preset,
-) -> Result<FitResult, IdPhotoError> {
-    let result = idphoto::PhotoCompressor::new(input)?
-        .preset(preset.into())
-        .compress_to_fit(max_bytes as usize)?;
-
-    Ok(FitResult {
-        photo: CompressedPhoto {
-            data: result.photo.data,
-            format: result.photo.format.into(),
-            width: result.photo.width,
-            height: result.photo.height,
-            original_size: result.photo.original_size as u64,
-            face_bounds: result.photo.face_bounds.as_ref().map(convert_face_bounds),
-        },
-        quality_used: result.quality_used,
-        reached_target: result.reached_target,
-    })
+pub fn compress(input: Vec<u8>, options: CompressOptions) -> Result<CompressedPhoto, IdPhotoError> {
+    let compressor = idphoto::PhotoCompressor::new(input)?;
+    let compressor = apply_options(compressor, options);
+    let result = compressor.compress()?;
+    Ok(convert_compressed_photo(result))
 }
 
-/// Compress to fit within a byte budget with full control over parameters.
+/// Compress a photo to fit within a byte budget.
+///
+/// Uses binary search over quality to find the highest quality that fits
+/// within `max_bytes`. All option fields are optional.
 #[uniffi::export]
 pub fn compress_to_fit(
     input: Vec<u8>,
     max_bytes: u64,
-    max_dimension: u32,
-    grayscale: bool,
-    crop_mode: CropMode,
-    format: OutputFormat,
-    face_margin: f32,
+    options: CompressOptions,
 ) -> Result<FitResult, IdPhotoError> {
-    let result = idphoto::PhotoCompressor::new(input)?
-        .max_dimension(max_dimension)
-        .grayscale(grayscale)
-        .crop_mode(crop_mode.into())
-        .format(format.into())
-        .face_margin(face_margin)
-        .compress_to_fit(max_bytes as usize)?;
+    let compressor = idphoto::PhotoCompressor::new(input)?;
+    let compressor = apply_options(compressor, options);
+    let result = compressor.compress_to_fit(max_bytes as usize)?;
 
     Ok(FitResult {
-        photo: CompressedPhoto {
-            data: result.photo.data,
-            format: result.photo.format.into(),
-            width: result.photo.width,
-            height: result.photo.height,
-            original_size: result.photo.original_size as u64,
-            face_bounds: result.photo.face_bounds.as_ref().map(convert_face_bounds),
-        },
+        photo: convert_compressed_photo(result.photo),
         quality_used: result.quality_used,
         reached_target: result.reached_target,
     })
