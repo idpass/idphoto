@@ -233,9 +233,11 @@ fn preset_qr_code_with_real_photo() {
     assert!(result.height <= 64);
     assert_eq!(&result.data[0..4], b"RIFF");
     assert_eq!(&result.data[8..12], b"WEBP");
+    // QR preset should produce simple lossy VP8 data (no VP8L lossless payload).
+    assert_eq!(&result.data[12..16], b"VP8 ");
     // Should be very small — suitable for QR embedding
     assert!(
-        result.data.len() < 2000,
+        result.data.len() < 1000,
         "QR photo too large: {} bytes",
         result.data.len()
     );

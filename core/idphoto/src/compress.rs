@@ -1,7 +1,7 @@
 use image::codecs::jpeg::JpegEncoder;
-use image::codecs::webp::WebPEncoder;
 use image::imageops::FilterType;
 use image::{DynamicImage, ImageEncoder, ImageFormat, RgbImage, RgbaImage};
+use webp::Encoder as LibWebpEncoder;
 
 use crate::crop::{portrait_crop, CropRegion};
 use crate::error::IdPhotoError;
@@ -228,7 +228,7 @@ pub(crate) fn apply_grayscale(image: RgbImage, grayscale: bool) -> RgbImage {
 
 /// Encode an image to the specified format at the given quality.
 ///
-/// When `grayscale` is true, encodes as single-channel Luma8 to avoid
+/// When `grayscale` is true, JPEG is encoded as single-channel Luma8 to avoid
 /// wasting bytes on identical R=G=B triplets.
 pub(crate) fn encode_image(
     image: &RgbImage,
@@ -238,29 +238,27 @@ pub(crate) fn encode_image(
 ) -> Result<Vec<u8>, IdPhotoError> {
     let mut buffer = Vec::new();
 
-    // For grayscale, encode as Luma8 (single channel) instead of Rgb8 (3 channels).
-    // The RGB image already has R=G=B after apply_grayscale, so we extract the luma channel.
-    let (raw_data, color_type) = if grayscale {
-        let luma: Vec<u8> = image.as_raw().chunks(3).map(|rgb| rgb[0]).collect();
-        (luma, image::ExtendedColorType::L8)
-    } else {
-        (image.as_raw().to_vec(), image::ExtendedColorType::Rgb8)
-    };
-
     match format {
         OutputFormat::Webp => {
-            // The pure-Rust image-webp crate only supports lossless encoding.
-            // The quality parameter is ignored for WebP — use JPEG if you need
-            // lossy quality-based size control (e.g. compress_to_fit).
-            let encoder = WebPEncoder::new_lossless(&mut buffer);
-            encoder
-                .write_image(&raw_data, image.width(), image.height(), color_type)
-                .map_err(|e| IdPhotoError::EncodeError(e.to_string()))?;
+            // Use libwebp-backed lossy VP8 encoding so WebP honors the quality setting.
+            let quality_percent = (quality * 100.0).clamp(0.0, 100.0);
+            let encoded = LibWebpEncoder::from_rgb(image.as_raw(), image.width(), image.height())
+                .encode_simple(false, quality_percent)
+                .map_err(|e| IdPhotoError::EncodeError(format!("WebP encoding failed: {e:?}")))?;
+            buffer.extend_from_slice(&encoded);
 
             // Strip ICC profile from WebP output
             buffer = strip_icc_profile(&buffer);
         }
         OutputFormat::Jpeg => {
+            // For grayscale, encode as Luma8 (single channel) instead of Rgb8 (3 channels).
+            let (raw_data, color_type) = if grayscale {
+                let luma: Vec<u8> = image.as_raw().chunks(3).map(|rgb| rgb[0]).collect();
+                (luma, image::ExtendedColorType::L8)
+            } else {
+                (image.as_raw().to_vec(), image::ExtendedColorType::Rgb8)
+            };
+
             let quality_percent = (quality * 100.0).round() as u8;
             let encoder = JpegEncoder::new_with_quality(&mut buffer, quality_percent);
             encoder
@@ -419,13 +417,26 @@ mod tests {
     }
 
     #[test]
+    fn encode_webp_quality_controls_size() {
+        let img = make_test_rgb(48, 64);
+        let low_quality = encode_image(&img, &OutputFormat::Webp, 0.3, false).unwrap();
+        let high_quality = encode_image(&img, &OutputFormat::Webp, 0.9, false).unwrap();
+        assert!(
+            low_quality.len() < high_quality.len(),
+            "low quality ({}) should be smaller than high quality ({})",
+            low_quality.len(),
+            high_quality.len()
+        );
+    }
+
+    #[test]
     fn encode_grayscale_webp_smaller_than_color() {
         let img = make_test_rgb(48, 64);
         let color = encode_image(&img, &OutputFormat::Webp, 0.8, false).unwrap();
         let gray = encode_image(&img, &OutputFormat::Webp, 0.8, true).unwrap();
         assert!(
-            gray.len() < color.len(),
-            "grayscale ({}) should be smaller than color ({})",
+            gray.len() <= color.len(),
+            "grayscale ({}) should be no larger than color ({})",
             gray.len(),
             color.len()
         );

@@ -9,10 +9,10 @@ Built in Rust with bindings for Python, WASM, and Android/JVM (via JNI/UniFFI).
 - **Face-aware cropping** — detects faces and frames them in a 3:4 portrait crop with configurable margins (ID-photo framing or tight face crop for matching)
 - **Preset configurations** — `QrCode`, `QrCodeMatch`, `Print`, and `Display` presets for common use cases
 - **Byte-budget compression** — binary search over quality to fit within a target size (e.g., QR code payload limits)
-- **Multiple output formats** — WebP (lossless, ICC-stripped) and JPEG (lossy, quality-controlled)
+- **Multiple output formats** — WebP and JPEG (both quality-controlled), with ICC stripping for WebP
 - **Grayscale conversion** — single-channel encoding for smaller payloads
 - **Pluggable face detection** — built-in SeetaFace backend (~1.2MB model bundled) or bring your own via the `FaceDetector` trait
-- **No unsafe code** — pure safe Rust
+- **Safe Rust API** — memory-safe interfaces across core and bindings
 
 ## Presets
 

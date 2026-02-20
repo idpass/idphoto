@@ -19,6 +19,7 @@ rustface = ["dep:rustface"]
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 thiserror = "2"
 rustface = { version = "0.1", default-features = false, optional = true }
+webp = { version = "0.3.1", default-features = false }
 
 [[example]]
 name = "debug_face_detection"
