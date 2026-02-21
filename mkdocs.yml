@@ -89,5 +89,6 @@ nav:
       - Python: sdk/python.md
       - JavaScript (WASM): sdk/wasm.md
       - Kotlin/Java (JNI): sdk/jni.md
+  - Model Assets: model-assets.md
   - Testing and Fixtures: testing.md
   - Contributing: contributing.md

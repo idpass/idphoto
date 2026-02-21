@@ -63,8 +63,13 @@ pip install maturin pytest
 maturin develop --manifest-path bindings/python/Cargo.toml
 pytest bindings/python/tests/ -v
 
-# WASM binding tests
-cargo test -p idphoto-wasm --target wasm32-unknown-unknown
+# WASM compile check
+cargo check -p idphoto-wasm --target wasm32-unknown-unknown
+
+# WASM binding tests (requires wasm-bindgen test runner and a wasm C toolchain)
+cargo install wasm-bindgen-cli --version 0.2.108 --locked
+CARGO_TARGET_WASM32_UNKNOWN_UNKNOWN_RUNNER=wasm-bindgen-test-runner \
+  cargo test -p idphoto-wasm --target wasm32-unknown-unknown
 ```
 
 ## Code Style

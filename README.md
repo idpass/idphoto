@@ -10,7 +10,7 @@ Built in Rust with bindings for Python, WASM, and Android/JVM (via JNI/UniFFI).
 - **Preset configurations** — `QrCode`, `QrCodeMatch`, `Print`, and `Display` presets for common use cases
 - **Byte-budget compression** — binary search over quality to fit within a target size (e.g., QR code payload limits)
 - **Multiple output formats** — WebP and JPEG (both quality-controlled), with ICC stripping for WebP
-- **Grayscale conversion** — single-channel encoding for smaller payloads
+- **Grayscale conversion** — smaller payloads for QR workflows (JPEG is encoded single-channel in grayscale mode)
 - **Pluggable face detection** — built-in SeetaFace backend (~1.2MB model bundled) or bring your own via the `FaceDetector` trait
 - **Safe Rust API** — memory-safe interfaces across core and bindings
 
@@ -76,26 +76,28 @@ raw = open("photo.jpg", "rb").read()
 
 # Using a preset
 result = idphoto.compress(raw, preset="qr-code")
-print(f"{result['width']}x{result['height']}, {len(result['data'])} bytes")
+print(f"{result.width}x{result.height}, {len(result.data)} bytes")
 
 # With a byte budget
 fit = idphoto.compress_to_fit(raw, max_bytes=2048, preset="qr-code")
-print(f"Quality: {fit['quality_used']}, Reached: {fit['reached_target']}")
+print(f"Quality: {fit.quality_used}, Reached: {fit.reached_target}")
 ```
 
 ### JavaScript (WASM)
 
 ```javascript
-import { compress, compressToFit } from "idphoto-wasm";
+import init, { compress, compressToFit } from "@idpass/idphoto-wasm";
+
+await init();
 
 const input = new Uint8Array(await file.arrayBuffer());
 
 // Using a preset
-const result = compress(input, "qr-code");
+const result = compress(input, { preset: "qr-code" });
 console.log(`${result.width}x${result.height}, ${result.data.length} bytes`);
 
 // With a byte budget
-const fit = compressToFit(input, 2048, "qr-code");
+const fit = compressToFit(input, 2048, { preset: "qr-code" });
 console.log(`Quality: ${fit.qualityUsed}, Reached: ${fit.reachedTarget}`);
 ```
 

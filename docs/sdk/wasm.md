@@ -1,6 +1,6 @@
 # JavaScript SDK (WASM)
 
-Package target: `idphoto-wasm` (`bindings/wasm`)
+Package target: `@idpass/idphoto-wasm` (`bindings/wasm`)
 
 ## Build
 
@@ -70,12 +70,14 @@ Errors are thrown as standard `Error` objects with a machine-readable `code` pro
 | Code | Meaning |
 | --- | --- |
 | `DECODE_ERROR` | Input cannot be decoded |
-| `UNSUPPORTED_FORMAT` | Input is not JPEG, PNG, or WebP |
+| `UNSUPPORTED_FORMAT` | Reserved for unsupported-format mapping from core |
 | `ZERO_DIMENSIONS` | Image dimensions are zero |
 | `ENCODE_ERROR` | Output encoding failed |
 | `INVALID_QUALITY` | Quality outside 0.0–1.0 |
 | `INVALID_MAX_DIMENSION` | maxDimension is 0 |
 | `INVALID_OPTIONS` | Options object is malformed |
+
+Note: unsupported input formats are currently reported as `DECODE_ERROR` by the core decoder path.
 
 ```javascript
 try {
@@ -88,7 +90,7 @@ try {
 ## Example
 
 ```javascript
-import init, { compress, compressToFit } from "idphoto-wasm";
+import init, { compress, compressToFit } from "@idpass/idphoto-wasm";
 
 await init();
 

@@ -62,11 +62,13 @@ Core `idphoto::IdPhotoError` values are mapped to UniFFI-friendly `IdPhotoError`
 | Variant | Description |
 | --- | --- |
 | `DecodeError` | Input cannot be decoded (carries message) |
-| `UnsupportedFormat` | Input is not JPEG, PNG, or WebP |
+| `UnsupportedFormat` | Reserved for unsupported-format mapping from core |
 | `ZeroDimensions` | Image dimensions are zero |
 | `EncodeError` | Output encoding failed (carries message) |
 | `InvalidQuality` | Quality outside 0.0–1.0 (carries the invalid value) |
 | `InvalidMaxDimension` | maxDimension is 0 |
+
+Note: unsupported input formats are currently surfaced as `DecodeError` by the core decoder path.
 
 ## Example (Kotlin)
 

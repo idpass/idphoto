@@ -92,11 +92,13 @@ All library errors inherit from `IdPhotoError`, which inherits from `Exception`:
 | Exception | Raised When |
 | --- | --- |
 | `DecodeError` | Input cannot be decoded as an image |
-| `UnsupportedFormatError` | Input format is not JPEG, PNG, or WebP |
+| `UnsupportedFormatError` | Reserved for unsupported-format mapping from core |
 | `ZeroDimensionsError` | Image dimensions are zero |
 | `EncodeError` | Output image cannot be encoded |
 | `InvalidQualityError` | Quality is outside 0.0–1.0 |
 | `InvalidMaxDimensionError` | max_dimension is 0 |
+
+Note: unsupported input formats are currently reported as `DecodeError` by the core decoder path.
 
 Argument validation errors (invalid preset, crop_mode, or output_format strings) raise `ValueError`.
 

@@ -38,7 +38,7 @@ flowchart LR
 
 - `OutputFormat::Webp` uses lossy encoding and honors `quality` in range `0.0..=1.0`.
 - `OutputFormat::Jpeg` honors `quality` in range `0.0..=1.0`.
-- Grayscale mode writes single-channel payloads for smaller output.
+- Grayscale mode can reduce output size. JPEG uses single-channel encoding in grayscale mode.
 
 ## Face Bounds Mapping
 

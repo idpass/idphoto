@@ -4,9 +4,11 @@ Crate: `idphoto` (`core/idphoto`)
 
 ## Install
 
+`idphoto` is not published on crates.io yet. Use a Git dependency:
+
 ```toml
 [dependencies]
-idphoto = "0.1"
+idphoto = { git = "https://github.com/idpass/idphoto", package = "idphoto" }
 ```
 
 Or use path dependency while developing:
@@ -50,7 +52,7 @@ println!("quality={}, reached={}", fit.quality_used, fit.reached_target);
 | --- | --- |
 | `preset(Preset)` | Apply complete preset defaults |
 | `max_dimension(u32)` | Set output max dimension |
-| `quality(f32)` | Set JPEG quality (`0.0..=1.0`) |
+| `quality(f32)` | Set encoding quality (`0.0..=1.0`) for JPEG and lossy WebP |
 | `grayscale(bool)` | Enable grayscale conversion |
 | `crop_mode(CropMode)` | Set crop strategy |
 | `format(OutputFormat)` | Select `Webp` or `Jpeg` |

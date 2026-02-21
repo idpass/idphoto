@@ -5,6 +5,21 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- Reusable LFW model comparison script (`bindings/python/examples/lfw_model_compare.py`) for int8, official InsightFace, and optional OpenCV SFace evaluation.
+- Extended ArcFace QR evaluation script (`bindings/python/examples/arcface_qr_eval.py`) and testing docs for byte-budget quality analysis.
+- Model asset download and licensing guidance (`model/README.md`), with docs-site navigation entry.
+
+### Changed
+
+- WebP encoding is now lossy and honors the configured quality value.
+- SDK documentation updated for current idiomatic bindings APIs (Python object attributes, WASM options object usage, and package naming).
+- Contributing/testing docs updated for WASM test prerequisites and runner usage.
+- Error documentation clarified to match current decoder behavior for unsupported inputs.
+
 ## [0.1.0] - 2026-02-14
 
 ### Added

@@ -35,7 +35,7 @@ The example script is:
 Install dependencies:
 
 ```bash
-pip install onnxruntime numpy pillow insightface opencv-python
+pip install onnxruntime numpy pillow insightface opencv-python scikit-learn
 ```
 
 Build the Python bindings if needed:
