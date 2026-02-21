@@ -2,6 +2,16 @@
 
 Crate: `idphoto` (`core/idphoto`)
 
+See [SDK Overview](index.md) for language selection and API shape comparison.
+
+## API
+
+Rust integration is builder-first and enum-driven:
+
+- `PhotoCompressor` for fluent configuration
+- `Preset`, `CropMode`, and `OutputFormat` enums for constrained values
+- `compress()` for one-shot output and `compress_to_fit()` for byte budgets
+
 ## Install
 
 `idphoto` is not published on crates.io yet. Use a Git dependency:

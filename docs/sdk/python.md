@@ -2,6 +2,8 @@
 
 Module: `idphoto` (`bindings/python`)
 
+See [SDK Overview](index.md) for language selection and API shape comparison.
+
 ## Build And Install Locally
 
 ```bash
@@ -11,25 +13,46 @@ maturin develop --manifest-path bindings/python/Cargo.toml
 
 ## API
 
-### `compress(data, *, ...)`
+Use enums and typed option objects instead of raw string literals:
 
-Compress an identity photo.
+- `Preset`, `CropMode`, `OutputFormat`
+- `CompressOptions`
+- `CompressToFitOptions`
+- `IdPhoto` object-style entrypoint
 
 ```python
-compress(
-    data: bytes,
-    *,
-    preset: str | None = None,
-    max_dimension: int | None = None,
-    quality: float | None = None,
-    grayscale: bool | None = None,
-    crop_mode: str | None = None,
-    output_format: str | None = None,
-    face_margin: float | None = None,
-) -> CompressResult
+import idphoto
+
+raw = open("photo.jpg", "rb").read()
+
+options = idphoto.CompressOptions(
+    preset=idphoto.Preset.QR_CODE,
+    crop_mode=idphoto.CropMode.FACE_DETECTION,
+    output_format=idphoto.OutputFormat.WEBP,
+)
+
+result = idphoto.IdPhoto.compress(raw, options=options)
+print(result.format, len(result.data))
+
+fit_options = idphoto.CompressToFitOptions(
+    preset=idphoto.Preset.QR_CODE,
+)
+fit = idphoto.IdPhoto.compress_to_fit(raw, 2048, options=fit_options)
+print(fit.quality_used, fit.reached_target)
 ```
 
-Returns a `CompressResult` with attributes:
+## Functional API (Compatible)
+
+The original function-style API remains supported:
+
+```python
+result = idphoto.compress(raw, preset="qr-code")
+fit = idphoto.compress_to_fit(raw, max_bytes=2048, preset="qr-code")
+```
+
+## Return Types
+
+`compress` returns `CompressResult` with attributes:
 
 - `data` (`bytes`) — compressed image bytes
 - `format` (`str`) — `"webp"` or `"jpeg"`
@@ -37,53 +60,10 @@ Returns a `CompressResult` with attributes:
 - `original_size` (`int`)
 - `face_bounds` (`FaceBounds | None`)
 
-### `compress_to_fit(data, max_bytes, *, ...)`
-
-Compress to fit within a byte budget. Uses binary search over quality (8 iterations).
-
-```python
-compress_to_fit(
-    data: bytes,
-    max_bytes: int,
-    *,
-    preset: str | None = None,
-    max_dimension: int | None = None,
-    grayscale: bool | None = None,
-    crop_mode: str | None = None,
-    output_format: str | None = None,
-    face_margin: float | None = None,
-) -> FitResult
-```
-
-Returns a `FitResult` with all `CompressResult` attributes plus:
+`compress_to_fit` returns `FitResult` with all `CompressResult` attributes plus:
 
 - `quality_used` (`float`)
 - `reached_target` (`bool`)
-
-### `FaceBounds`
-
-- `x` (`float`), `y` (`float`), `width` (`float`), `height` (`float`)
-- `confidence` (`float`)
-
-## Example
-
-```python
-import idphoto
-
-raw = open("photo.jpg", "rb").read()
-
-result = idphoto.compress(raw, preset="qr-code")
-print(result.format, len(result.data))
-
-fit = idphoto.compress_to_fit(raw, max_bytes=2048, preset="qr-code")
-print(fit.quality_used, fit.reached_target)
-```
-
-## Accepted String Values
-
-- Preset: `"qr-code"`, `"qr-code-match"`, `"print"`, `"display"`
-- Crop mode: `"heuristic"`, `"none"`, `"face-detection"`
-- Output format: `"webp"`, `"jpeg"`
 
 ## Exception Hierarchy
 
@@ -102,15 +82,6 @@ Note: unsupported input formats are currently reported as `DecodeError` by the c
 
 Argument validation errors (invalid preset, crop_mode, or output_format strings) raise `ValueError`.
 
-```python
-try:
-    idphoto.compress(b"not an image")
-except idphoto.DecodeError as e:
-    print(e)  # caught as specific type
-except idphoto.IdPhotoError:
-    print("some other library error")
-```
+## Type Support
 
-## Type Stubs
-
-The package ships with a `py.typed` marker and `.pyi` stubs for full type checker support.
+The package ships with a `py.typed` marker and `.pyi` stubs for static type checking.

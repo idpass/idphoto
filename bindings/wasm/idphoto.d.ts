@@ -1,22 +1,62 @@
-/**
- * Options for photo compression.
- *
- * All fields are optional. When a `preset` is specified its defaults apply,
- * and individual fields override them.
- */
+/** Common preset values. */
+export declare const Preset: {
+  readonly QR_CODE: "qr-code";
+  readonly QR_CODE_MATCH: "qr-code-match";
+  readonly PRINT: "print";
+  readonly DISPLAY: "display";
+};
+
+/** Preset name. */
+export type Preset = (typeof Preset)[keyof typeof Preset];
+
+/** Common crop mode values. */
+export declare const CropMode: {
+  readonly HEURISTIC: "heuristic";
+  readonly NONE: "none";
+  readonly FACE_DETECTION: "face-detection";
+};
+
+/** Crop mode name. */
+export type CropMode = (typeof CropMode)[keyof typeof CropMode];
+
+/** Output format values. */
+export declare const OutputFormat: {
+  readonly WEBP: "webp";
+  readonly JPEG: "jpeg";
+};
+
+/** Output format name. */
+export type OutputFormat = (typeof OutputFormat)[keyof typeof OutputFormat];
+
+/** Error codes that can be returned by idphoto functions. */
+export declare const IdPhotoErrorCode: {
+  readonly DECODE_ERROR: "DECODE_ERROR";
+  readonly UNSUPPORTED_FORMAT: "UNSUPPORTED_FORMAT";
+  readonly ZERO_DIMENSIONS: "ZERO_DIMENSIONS";
+  readonly ENCODE_ERROR: "ENCODE_ERROR";
+  readonly INVALID_QUALITY: "INVALID_QUALITY";
+  readonly INVALID_MAX_DIMENSION: "INVALID_MAX_DIMENSION";
+  readonly INVALID_OPTIONS: "INVALID_OPTIONS";
+};
+
+/** Error code union. */
+export type IdPhotoErrorCode =
+  (typeof IdPhotoErrorCode)[keyof typeof IdPhotoErrorCode];
+
+/** Options for photo compression. */
 export interface CompressOptions {
-  /** Preset name: "qr-code", "qr-code-match", "print", or "display". */
-  preset?: "qr-code" | "qr-code-match" | "print" | "display";
+  /** Preset name. */
+  preset?: Preset;
   /** Maximum output dimension in pixels (overrides preset). */
   maxDimension?: number;
   /** Compression quality between 0.0 and 1.0 (overrides preset). */
   quality?: number;
   /** Convert to grayscale (overrides preset). */
   grayscale?: boolean;
-  /** Crop mode: "heuristic", "none", or "face-detection" (overrides preset). */
-  cropMode?: "heuristic" | "none" | "face-detection";
-  /** Output format: "webp" or "jpeg" (overrides preset). */
-  format?: "webp" | "jpeg";
+  /** Crop mode (overrides preset). */
+  cropMode?: CropMode;
+  /** Output format (overrides preset). */
+  format?: OutputFormat;
   /** Face detection crop margin multiplier (overrides preset). */
   faceMargin?: number;
 }
@@ -35,7 +75,7 @@ export interface CompressedPhoto {
   /** Compressed image bytes. */
   readonly data: Uint8Array;
   /** Output format used. */
-  readonly format: "webp" | "jpeg";
+  readonly format: OutputFormat;
   /** Output width in pixels. */
   readonly width: number;
   /** Output height in pixels. */
@@ -48,23 +88,10 @@ export interface CompressedPhoto {
 
 /** Result of a compressToFit() call. */
 export interface FitResult {
-  /** The compressed photo. */
   readonly photo: CompressedPhoto;
-  /** Quality value that was used to meet the byte budget. */
   readonly qualityUsed: number;
-  /** Whether the output fits within the requested byte budget. */
   readonly reachedTarget: boolean;
 }
-
-/** Error codes that can be returned by idphoto functions. */
-export type IdPhotoErrorCode =
-  | "DECODE_ERROR"
-  | "UNSUPPORTED_FORMAT"
-  | "ZERO_DIMENSIONS"
-  | "ENCODE_ERROR"
-  | "INVALID_QUALITY"
-  | "INVALID_MAX_DIMENSION"
-  | "INVALID_OPTIONS";
 
 /** An error thrown by idphoto functions, with a machine-readable code. */
 export interface IdPhotoError extends Error {
@@ -72,40 +99,41 @@ export interface IdPhotoError extends Error {
 }
 
 /**
- * Compress an identity photo.
+ * Initialize the WASM module.
  *
- * @param input - Raw image bytes (JPEG, PNG, or WebP).
- * @param options - Compression options (all fields optional).
- * @returns The compressed photo.
+ * Subsequent calls return the same promise.
  */
+declare function init(
+  moduleOrPath?: string | URL | Request | WebAssembly.Module,
+): Promise<void>;
+
+/** Compress an identity photo. Requires prior init. */
 export function compress(
   input: Uint8Array,
   options?: CompressOptions,
 ): CompressedPhoto;
 
-/**
- * Compress an identity photo to fit within a byte budget.
- *
- * Uses binary search over quality to find the highest quality
- * that produces output within `maxBytes`.
- *
- * @param input - Raw image bytes (JPEG, PNG, or WebP).
- * @param maxBytes - Maximum output size in bytes.
- * @param options - Compression options (all fields optional).
- * @returns The fit result with the compressed photo and quality used.
- */
+/** Compress an identity photo to fit within a byte budget. Requires prior init. */
 export function compressToFit(
   input: Uint8Array,
   maxBytes: number,
   options?: CompressOptions,
 ): FitResult;
 
-/**
- * Initialize the WASM module.
- *
- * @param moduleOrPath - Optional path, URL, or pre-compiled WebAssembly.Module.
- * @returns A promise that resolves when initialization is complete.
- */
-export default function init(
+/** Client-style API for JS/TS users. */
+export class IdPhoto {
+  compress(input: Uint8Array, options?: CompressOptions): CompressedPhoto;
+  compressToFit(
+    input: Uint8Array,
+    maxBytes: number,
+    options?: CompressOptions,
+  ): FitResult;
+}
+
+/** Initialize and return an IdPhoto client instance. */
+export function createIdPhoto(
   moduleOrPath?: string | URL | Request | WebAssembly.Module,
-): Promise<void>;
+): Promise<IdPhoto>;
+
+export { init };
+export default init;

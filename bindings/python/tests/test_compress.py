@@ -100,6 +100,38 @@ class TestCompress:
             result = idphoto.compress(png, preset=preset)
             assert len(result.data) > 0, f"preset {preset} produced empty output"
 
+    def test_enums_and_typed_options(self):
+        png = make_test_png(200, 300)
+        options = idphoto.CompressOptions(
+            preset=idphoto.Preset.QR_CODE,
+            crop_mode=idphoto.CropMode.HEURISTIC,
+            output_format=idphoto.OutputFormat.WEBP,
+            max_dimension=48,
+        )
+        result = idphoto.compress(png, options=options)
+        assert len(result.data) > 0
+        assert result.format == "webp"
+
+    def test_object_style_api(self):
+        png = make_test_png(200, 300)
+        result = idphoto.IdPhoto.compress(
+            png,
+            preset=idphoto.Preset.DISPLAY,
+            output_format=idphoto.OutputFormat.JPEG,
+        )
+        assert result.data[:2] == b"\xff\xd8"
+
+    def test_fit_typed_options(self):
+        png = make_test_png(200, 300)
+        options = idphoto.CompressToFitOptions(
+            preset=idphoto.Preset.QR_CODE_MATCH,
+            crop_mode=idphoto.CropMode.HEURISTIC,
+            output_format=idphoto.OutputFormat.WEBP,
+        )
+        result = idphoto.compress_to_fit(png, 10_000, options=options)
+        assert result.reached_target is True
+        assert len(result.data) <= 10_000
+
     def test_compress_result_repr(self):
         png = make_test_png(200, 300)
         result = idphoto.compress(png)

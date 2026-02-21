@@ -2,7 +2,7 @@
 
 Identity photo processing library: crop, resize, and compress photos for ID documents and QR codes.
 
-Built in Rust with bindings for Python, WASM, and Android/JVM (via JNI/UniFFI).
+Built in Rust with SDKs for Python, TypeScript/JavaScript, Kotlin, and Java.
 
 ## Features
 
@@ -13,6 +13,14 @@ Built in Rust with bindings for Python, WASM, and Android/JVM (via JNI/UniFFI).
 - **Grayscale conversion** — smaller payloads for QR workflows (JPEG is encoded single-channel in grayscale mode)
 - **Pluggable face detection** — built-in SeetaFace backend (~1.2MB model bundled) or bring your own via the `FaceDetector` trait
 - **Safe Rust API** — memory-safe interfaces across core and bindings
+
+## API By Language
+
+- **Rust**: fluent builder (`PhotoCompressor`) + enums (`Preset`, `CropMode`, `OutputFormat`)
+- **Python**: enums + typed options (`CompressOptions`, `CompressToFitOptions`) + `IdPhoto` object-style entrypoint
+- **TypeScript/JavaScript**: `createIdPhoto()` client API + exported constants (`Preset`, `CropMode`, `OutputFormat`)
+- **Kotlin**: DSL-style wrapper (`IdPhoto.compress { ... }`) over UniFFI/JNI bindings
+- **Java**: static facade (`JavaIdPhoto.compress(...)`) with Java builders and Java-friendly result models
 
 ## Presets
 
@@ -74,31 +82,58 @@ import idphoto
 
 raw = open("photo.jpg", "rb").read()
 
-# Using a preset
-result = idphoto.compress(raw, preset="qr-code")
+# Typed options + object-style API
+options = idphoto.CompressOptions(preset=idphoto.Preset.QR_CODE)
+result = idphoto.IdPhoto.compress(raw, options=options)
 print(f"{result.width}x{result.height}, {len(result.data)} bytes")
 
 # With a byte budget
-fit = idphoto.compress_to_fit(raw, max_bytes=2048, preset="qr-code")
+fit = idphoto.IdPhoto.compress_to_fit(
+    raw,
+    max_bytes=2048,
+    options=idphoto.CompressToFitOptions(preset=idphoto.Preset.QR_CODE),
+)
 print(f"Quality: {fit.quality_used}, Reached: {fit.reached_target}")
 ```
 
-### JavaScript (WASM)
+### TypeScript/JavaScript
+
+Implementation detail: packaged as a WASM module.
 
 ```javascript
-import init, { compress, compressToFit } from "@idpass/idphoto-wasm";
-
-await init();
+import { createIdPhoto, Preset } from "@idpass/idphoto-wasm";
 
 const input = new Uint8Array(await file.arrayBuffer());
+const idphoto = await createIdPhoto();
 
-// Using a preset
-const result = compress(input, { preset: "qr-code" });
+const result = idphoto.compress(input, { preset: Preset.QR_CODE });
 console.log(`${result.width}x${result.height}, ${result.data.length} bytes`);
 
-// With a byte budget
-const fit = compressToFit(input, 2048, { preset: "qr-code" });
+const fit = idphoto.compressToFit(input, 2048, { preset: Preset.QR_CODE });
 console.log(`Quality: ${fit.qualityUsed}, Reached: ${fit.reachedTarget}`);
+```
+
+### Kotlin
+
+```kotlin
+import org.idpass.idphoto.*
+
+val result = IdPhoto.compress(rawBytes) {
+    preset = Preset.QR_CODE
+}
+println(result.toSummaryString())
+```
+
+### Java
+
+```java
+import org.idpass.idphoto.*;
+
+JavaCompressOptions options = new JavaCompressOptions.Builder()
+    .setPreset(Preset.QR_CODE)
+    .build();
+JavaCompressedPhoto result = JavaIdPhoto.compress(rawBytes, options);
+System.out.println(JavaIdPhoto.summary(result));
 ```
 
 ## Building from Source
@@ -131,14 +166,14 @@ pip install maturin
 maturin develop --manifest-path bindings/python/Cargo.toml
 ```
 
-### WASM Bindings
+### TypeScript/JavaScript Binding (WASM)
 
 ```sh
 rustup target add wasm32-unknown-unknown
 cargo build -p idphoto-wasm --target wasm32-unknown-unknown --release
 ```
 
-### JNI/Android Bindings
+### Kotlin And Java Bindings (UniFFI/JNI)
 
 ```sh
 cargo build -p idphoto-jni

@@ -1,6 +1,10 @@
-# JavaScript SDK (WASM)
+# TypeScript/JavaScript SDK
 
-Package target: `@idpass/idphoto-wasm` (`bindings/wasm`)
+Package: `@idpass/idphoto-wasm`
+
+Implementation detail: this SDK runs via WebAssembly (WASM) and is built from `bindings/wasm`.
+
+See [SDK Overview](index.md) for language selection and API shape comparison.
 
 ## Build
 
@@ -10,62 +14,79 @@ cargo install wasm-pack
 wasm-pack build bindings/wasm --target bundler
 ```
 
-## API Surface
+## API
 
-### `compress(input, options?)`
+The package exposes a client-style API:
 
-Compress an identity photo.
+- `createIdPhoto()` initializes the runtime and returns an `IdPhoto` client
+- `IdPhoto.compress(input, options?)`
+- `IdPhoto.compressToFit(input, maxBytes, options?)`
 
-- `input` — `Uint8Array` of raw image bytes (JPEG, PNG, or WebP)
-- `options` — optional `CompressOptions` object
+```typescript
+import { createIdPhoto, Preset } from "@idpass/idphoto-wasm";
 
-Returns a `CompressedPhoto` plain object.
+const idphoto = await createIdPhoto();
+const input = new Uint8Array(await file.arrayBuffer());
 
-### `compressToFit(input, maxBytes, options?)`
+const result = idphoto.compress(input, { preset: Preset.QR_CODE });
+const fit = idphoto.compressToFit(input, 2048, { preset: Preset.QR_CODE });
+```
 
-Compress to fit within a byte budget. Uses binary search over quality.
+## Functional API (Compatible)
 
-- `input` — `Uint8Array` of raw image bytes
-- `maxBytes` — maximum output size in bytes
-- `options` — optional `CompressOptions` object
+The original functional API is still exported for compatibility:
 
-Returns a `FitResult` plain object.
+- `init()`
+- `compress(input, options?)`
+- `compressToFit(input, maxBytes, options?)`
 
-## Options Object
+```typescript
+import init, { compress, compressToFit } from "@idpass/idphoto-wasm";
 
-All fields are optional. When a `preset` is specified its defaults apply, and individual fields override them.
+await init();
+const result = compress(input, { preset: "qr-code" });
+const fit = compressToFit(input, 2048, { preset: "qr-code" });
+```
+
+## Constants And Options
+
+Use exported constants to avoid string literals:
+
+- `Preset` (`QR_CODE`, `QR_CODE_MATCH`, `PRINT`, `DISPLAY`)
+- `CropMode` (`HEURISTIC`, `NONE`, `FACE_DETECTION`)
+- `OutputFormat` (`WEBP`, `JPEG`)
 
 ```typescript
 interface CompressOptions {
-  preset?: "qr-code" | "qr-code-match" | "print" | "display";
+  preset?: Preset;
   maxDimension?: number;
-  quality?: number;       // 0.0 – 1.0
+  quality?: number; // 0.0 – 1.0
   grayscale?: boolean;
-  cropMode?: "heuristic" | "none" | "face-detection";
-  format?: "webp" | "jpeg";
+  cropMode?: CropMode;
+  format?: OutputFormat;
   faceMargin?: number;
 }
 ```
 
 ## Return Types
 
-`compress` returns a plain JS object:
+`compress` returns:
 
 - `data` (`Uint8Array`) — compressed image bytes
-- `format` (`"webp"` or `"jpeg"`)
+- `format` (`"webp" | "jpeg"`)
 - `width`, `height` (`number`)
 - `originalSize` (`number`)
-- `faceBounds` (`{ x, y, width, height, confidence }` or `null`)
+- `faceBounds` (`{ x, y, width, height, confidence } | null`)
 
-`compressToFit` returns a plain JS object:
+`compressToFit` returns:
 
-- `photo` — a `CompressedPhoto` object (same shape as above)
+- `photo` (`CompressedPhoto`)
 - `qualityUsed` (`number`)
 - `reachedTarget` (`boolean`)
 
 ## Error Handling
 
-Errors are thrown as standard `Error` objects with a machine-readable `code` property:
+Errors are standard `Error` objects with a machine-readable `code`:
 
 | Code | Meaning |
 | --- | --- |
@@ -79,30 +100,16 @@ Errors are thrown as standard `Error` objects with a machine-readable `code` pro
 
 Note: unsupported input formats are currently reported as `DECODE_ERROR` by the core decoder path.
 
-```javascript
+```typescript
+import { IdPhotoErrorCode, createIdPhoto } from "@idpass/idphoto-wasm";
+
+const idphoto = await createIdPhoto();
+
 try {
-  const result = compress(input, { preset: "qr-code" });
+  idphoto.compress(input, { preset: "qr-code" });
 } catch (e) {
-  console.error(e.code, e.message);
+  if ((e as { code?: string }).code === IdPhotoErrorCode.INVALID_OPTIONS) {
+    console.error("invalid options", e);
+  }
 }
 ```
-
-## Example
-
-```javascript
-import init, { compress, compressToFit } from "@idpass/idphoto-wasm";
-
-await init();
-
-const input = new Uint8Array(await file.arrayBuffer());
-
-const result = compress(input, { preset: "qr-code" });
-console.log(result.width, result.height, result.data.length);
-
-const fit = compressToFit(input, 2048, { preset: "qr-code" });
-console.log(fit.qualityUsed, fit.reachedTarget);
-```
-
-## TypeScript
-
-The package includes hand-written `.d.ts` declarations with full type information for `CompressOptions`, `CompressedPhoto`, `FaceBounds`, `FitResult`, and error codes.

@@ -16,7 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - WebP encoding is now lossy and honors the configured quality value.
-- SDK documentation updated for current idiomatic bindings APIs (Python object attributes, WASM options object usage, and package naming).
+- SDK documentation updated for current bindings APIs (Python object attributes, WASM options object usage, and package naming).
+- Python SDK now exposes idiomatic enums and typed options (`Preset`, `CropMode`, `OutputFormat`, `CompressOptions`, `CompressToFitOptions`) plus an object-style `IdPhoto` entrypoint while keeping function compatibility.
+- WASM SDK now exposes an idiomatic client API (`createIdPhoto` + `IdPhoto` class) and exported constants for option values, while preserving `init`/`compress`/`compressToFit` compatibility exports.
+- JVM SDK now provides separate language wrappers: Kotlin DSL wrapper (`IdPhoto`) and Java static wrapper (`JavaIdPhoto`) with Java-specific option/result types.
+- Documentation site navigation is reorganized around Start/SDK/Core/Operations sections with a new SDK overview page, clearer cross-links, and language-first naming.
 - Contributing/testing docs updated for WASM test prerequisites and runner usage.
 - Error documentation clarified to match current decoder behavior for unsupported inputs.
 

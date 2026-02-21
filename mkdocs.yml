@@ -78,17 +78,24 @@ dev_addr: 127.0.0.1:8001
 
 nav:
   - Home: index.md
-  - Getting Started: getting-started.md
+  - Start Here:
+      - Getting Started: getting-started.md
+      - SDK Overview: sdk/index.md
+      - Presets and Byte Budgets: core/presets.md
+  - SDKs:
+      - Overview: sdk/index.md
+      - Rust: sdk/rust.md
+      - Python: sdk/python.md
+      - TypeScript/JavaScript: sdk/wasm.md
+      - Kotlin: sdk/kotlin.md
+      - Java: sdk/java.md
+      - JVM Low-Level (UniFFI/JNI): sdk/jni.md
   - Core Concepts:
       - Processing Pipeline: core/pipeline.md
       - Cropping Modes: core/cropping.md
-      - Presets and Byte Budgets: core/presets.md
       - Face Detection: core/face-detection.md
-  - SDKs:
-      - Rust: sdk/rust.md
-      - Python: sdk/python.md
-      - JavaScript (WASM): sdk/wasm.md
-      - Kotlin/Java (JNI): sdk/jni.md
-  - Model Assets: model-assets.md
-  - Testing and Fixtures: testing.md
-  - Contributing: contributing.md
+  - Operations:
+      - Testing and Fixtures: testing.md
+      - Model Assets: model-assets.md
+  - Project:
+      - Contributing: contributing.md

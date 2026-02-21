@@ -4,18 +4,18 @@
   "description": "WASM bindings for idphoto identity photo processing",
   "license": "MIT",
   "type": "module",
-  "main": "pkg/idphoto_wasm.js",
-  "module": "pkg/idphoto_wasm.js",
+  "main": "index.js",
+  "module": "index.js",
   "types": "idphoto.d.ts",
   "exports": {
     ".": {
       "types": "./idphoto.d.ts",
-      "import": "./pkg/idphoto_wasm.js",
-      "default": "./pkg/idphoto_wasm.js"
+      "import": "./index.js",
+      "default": "./index.js"
     }
   },
   "sideEffects": false,
   "repository": { "type": "git", "url": "https://github.com/idpass/idphoto" },
-  "files": ["pkg/", "idphoto.d.ts"],
+  "files": ["pkg/", "index.js", "idphoto.d.ts"],
   "keywords": ["wasm", "image", "compression", "identity", "qr-code", "face-detection"]
 }

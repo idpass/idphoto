@@ -4,6 +4,12 @@
   <p><strong>Crop</strong> -> <strong>resize</strong> -> <strong>compress</strong>, with preset defaults tuned for real deployment constraints.</p>
 </div>
 
+## Start Here
+
+1. [Getting Started](getting-started.md) for prerequisites and local setup.
+2. [SDK Overview](sdk/index.md) to pick your language-specific API.
+3. [Presets and Byte Budgets](core/presets.md) to choose default behavior.
+
 ## Why idphoto
 
 <div class="feature-grid">
@@ -21,9 +27,19 @@
   </div>
   <div class="feature-card">
     <h3>Cross-platform bindings</h3>
-    <p>Rust core with Python, JavaScript (WASM), and Kotlin/Java (JNI/UniFFI) bindings.</p>
+    <p>Rust core with Python, TypeScript/JavaScript, Kotlin, and Java SDKs.</p>
   </div>
 </div>
+
+## SDK Entry Points
+
+| Language | Primary API | Details |
+| --- | --- | --- |
+| Rust | `PhotoCompressor::new(...).preset(...).compress()` | [Rust SDK](sdk/rust.md) |
+| Python | `IdPhoto.compress(..., options=CompressOptions(...))` | [Python SDK](sdk/python.md) |
+| TypeScript/JavaScript | `const api = await createIdPhoto(); api.compress(...)` | [TypeScript/JavaScript SDK](sdk/wasm.md) |
+| Kotlin | `IdPhoto.compress(bytes) { ... }` | [Kotlin SDK](sdk/kotlin.md) |
+| Java | `JavaIdPhoto.compress(bytes, options)` | [Java SDK](sdk/java.md) |
 
 ## Pipeline At A Glance
 
@@ -41,7 +57,7 @@
   <span class="pipeline-step">Encode (WebP/JPEG)</span>
 </div>
 
-## Quick Start (Rust)
+## Quick Example (Rust)
 
 ```rust
 use idphoto::{PhotoCompressor, Preset};
@@ -54,10 +70,3 @@ let result = PhotoCompressor::new(bytes)?
 println!("{}x{}, {} bytes", result.width, result.height, result.data.len());
 # Ok::<(), idphoto::IdPhotoError>(())
 ```
-
-## Next Steps
-
-- Start with [Getting Started](getting-started.md)
-- Understand [Processing Pipeline](core/pipeline.md)
-- Choose defaults from [Presets and Byte Budgets](core/presets.md)
-- Integrate using [SDK docs](sdk/rust.md)
