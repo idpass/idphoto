@@ -278,16 +278,39 @@ def compute_metrics(
             }
         )
 
+    # d-prime (decidability index)
+    pos_var = float(pos.var())
+    neg_var = float(neg.var())
+    pooled_std = np.sqrt((pos_var + neg_var) / 2.0)
+    if pooled_std > 0:
+        d_prime = float(abs(pos.mean() - neg.mean()) / pooled_std)
+    else:
+        d_prime = float("inf") if pos.mean() != neg.mean() else 0.0
+
+    # AUC-ROC via trapezoidal rule over the ROC curve.
+    # For each unique FAR, keep the maximum TAR (the best operating point
+    # at that false-match rate). This avoids sentinel thresholds dragging
+    # down the integral at FAR=0.
+    roc_points: Dict[float, float] = {}
+    for _, tar, far, _ in sweep:
+        if far not in roc_points or tar > roc_points[far]:
+            roc_points[far] = tar
+    roc_far = np.array(sorted(roc_points.keys()))
+    roc_tar = np.array([roc_points[f] for f in roc_far])
+    auc = float(np.trapezoid(roc_tar, roc_far))
+
     return {
         "positive": {
             "count": int(len(pos)),
             "mean": float(pos.mean()),
+            "std": float(pos.std()),
             "min": float(pos.min()),
             "max": float(pos.max()),
         },
         "negative": {
             "count": int(len(neg)),
             "mean": float(neg.mean()),
+            "std": float(neg.std()),
             "min": float(neg.min()),
             "max": float(neg.max()),
         },
@@ -295,6 +318,8 @@ def compute_metrics(
         "eer_approx": eer,
         "best_under_far": far_lookup,
         "operating_points": operating,
+        "d_prime": d_prime,
+        "auc": auc,
     }
 
 
@@ -310,6 +335,7 @@ def print_model_summary(name: str, metrics: Dict[str, object], far_caps: Sequenc
         "  positive cosine: "
         f"count={positive['count']} "
         f"mean={positive['mean']:.6f} "
+        f"std={positive['std']:.6f} "
         f"min={positive['min']:.6f} "
         f"max={positive['max']:.6f}"
     )
@@ -317,6 +343,7 @@ def print_model_summary(name: str, metrics: Dict[str, object], far_caps: Sequenc
         "  negative cosine: "
         f"count={negative['count']} "
         f"mean={negative['mean']:.6f} "
+        f"std={negative['std']:.6f} "
         f"min={negative['min']:.6f} "
         f"max={negative['max']:.6f}"
     )
@@ -335,15 +362,16 @@ def print_model_summary(name: str, metrics: Dict[str, object], far_caps: Sequenc
         f"FAR={eer['far']:.6f} "
         f"FRR={eer['frr']:.6f}"
     )
+    print(f"  d-prime={metrics['d_prime']:.4f}  AUC={metrics['auc']:.6f}")
     for cap in far_caps:
         item = far_lookup[f"{cap:g}"]
         if item is None:
-            print(f"  FAR<={cap:g}: no threshold")
+            print(f"  FMR<={cap:g}: no threshold")
         else:
             print(
-                f"  FAR<={cap:g}: "
+                f"  FMR<={cap:g}: "
                 f"thr={item['threshold']:.6f} "
                 f"TAR={item['tar']:.6f} "
-                f"FAR={item['far']:.6f} "
-                f"FRR={item['frr']:.6f}"
+                f"FMR={item['far']:.6f} "
+                f"FNMR={item['frr']:.6f}"
             )

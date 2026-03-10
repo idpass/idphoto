@@ -28,6 +28,7 @@ class TestComputeMetricsSeparated:
         pos = self.metrics["positive"]
         assert pos["count"] == 5
         assert abs(pos["mean"] - np.mean(self.positives)) < 1e-6
+        assert abs(pos["std"] - np.std(self.positives)) < 1e-6
         assert abs(pos["min"] - 0.8) < 1e-6
         assert abs(pos["max"] - 1.0) < 1e-6
 
@@ -35,6 +36,7 @@ class TestComputeMetricsSeparated:
         neg = self.metrics["negative"]
         assert neg["count"] == 5
         assert abs(neg["mean"] - np.mean(self.negatives)) < 1e-6
+        assert abs(neg["std"] - np.std(self.negatives)) < 1e-6
         assert abs(neg["min"] - 0.0) < 1e-6
         assert abs(neg["max"] - 0.2) < 1e-6
 
@@ -53,11 +55,9 @@ class TestComputeMetricsSeparated:
         assert op["tar"] == 1.0
         assert op["far"] == 0.0
 
-    @pytest.mark.xfail(reason="AUC not yet implemented (Phase 8)")
     def test_auc_near_one(self):
         assert self.metrics["auc"] > 0.99
 
-    @pytest.mark.xfail(reason="d-prime not yet implemented (Phase 8)")
     def test_d_prime_large(self):
         assert self.metrics["d_prime"] > 3.0
 
@@ -81,11 +81,9 @@ class TestComputeMetricsOverlapping:
     def test_balanced_accuracy_near_half(self):
         assert 0.3 < self.metrics["best_balanced"]["balanced_accuracy"] < 0.7
 
-    @pytest.mark.xfail(reason="AUC not yet implemented (Phase 8)")
     def test_auc_near_half(self):
         assert 0.3 < self.metrics["auc"] < 0.7
 
-    @pytest.mark.xfail(reason="d-prime not yet implemented (Phase 8)")
     def test_d_prime_near_zero(self):
         assert abs(self.metrics["d_prime"]) < 1.0
 

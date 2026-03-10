@@ -52,7 +52,7 @@ DEFAULT_OPENCV_MODEL_URL = (
     "face_recognition_sface/face_recognition_sface_2021dec.onnx"
 )
 DEFAULT_OPERATING_POINTS = "0.10,0.15,0.20,0.25,0.30"
-DEFAULT_FAR_CAPS = "0.10,0.05,0.01,0.001"
+DEFAULT_FAR_CAPS = "0.01,0.001,0.0001"
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -249,7 +249,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument(
         "--far-caps",
         default=DEFAULT_FAR_CAPS,
-        help="Comma-separated FAR caps for best TAR lookup (default: 0.10,0.05,0.01,0.001).",
+        help="Comma-separated FMR caps for best TAR lookup (default: 0.01,0.001,0.0001).",
     )
     parser.add_argument(
         "--output-json",
@@ -660,8 +660,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"compression={args.preset}/{args.output_format}/gray={args.grayscale}/"
         f"max_dim={args.max_dimension}/max_bytes={args.max_bytes}/crop={args.crop_mode}"
     )
+    total_images = len(ordered_keys)
+    fte_orig = sum(v for k, v in align_counts["orig"].items() if k.startswith("fallback:"))
+    fte_comp = sum(v for k, v in align_counts["comp"].items() if k.startswith("fallback:"))
     print(f"Alignment counts (original): {dict(align_counts['orig'])}")
     print(f"Alignment counts (compressed): {dict(align_counts['comp'])}")
+    print(
+        f"FTE rate: original={fte_orig}/{total_images} ({fte_orig/total_images:.4f}), "
+        f"compressed={fte_comp}/{total_images} ({fte_comp/total_images:.4f})"
+    )
 
     labels = {
         "int8": "onnxmodelzoo-int8",
@@ -739,6 +746,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "alignment_counts": {
                 "original": dict(align_counts["orig"]),
                 "compressed": dict(align_counts["comp"]),
+            },
+            "fte": {
+                "total_images": total_images,
+                "original": {"count": fte_orig, "rate": fte_orig / total_images},
+                "compressed": {"count": fte_comp, "rate": fte_comp / total_images},
             },
             "models": results,
         }
