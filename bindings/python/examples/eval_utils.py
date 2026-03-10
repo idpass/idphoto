@@ -16,8 +16,8 @@ from PIL import Image
 
 def l2_normalize(vector: np.ndarray) -> np.ndarray:
     norm = np.linalg.norm(vector)
-    if norm == 0.0:
-        raise ValueError("Zero-norm embedding encountered")
+    if norm < 1e-10:
+        raise ValueError("Near-zero-norm embedding encountered")
     return vector / norm
 
 
@@ -164,10 +164,13 @@ def compute_metrics(
         tar = 1.0 - frr
         return tar, far, frr
 
-    threshold_values = list(pos) + list(neg) + list(operating_points)
-    threshold_values.append(float(neg.max()) + 1e-6)
-    threshold_values.append(float(pos.min()) - 1e-6)
-    thresholds = sorted(set(threshold_values))
+    # Build thresholds from actual scores only (not user-specified operating points).
+    # Operating points are report-at values, not candidates for EER/balanced-accuracy.
+    # The sentinels ensure FAR=0.0 and FRR=0.0 are reachable.
+    score_thresholds = list(pos) + list(neg)
+    score_thresholds.append(float(neg.max()) + 1e-6)
+    score_thresholds.append(float(pos.min()) - 1e-6)
+    thresholds = sorted(set(score_thresholds))
 
     best_bal = None
     for threshold in thresholds:

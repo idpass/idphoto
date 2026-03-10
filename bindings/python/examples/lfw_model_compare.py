@@ -615,10 +615,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             gallery_a = embeddings[model_name][gallery_embed_key][key_a]
             score_b_to_a = float(np.dot(query_b, gallery_a))
 
+            avg_score = (score_a_to_b + score_b_to_a) / 2.0
             if is_same:
-                positives.extend([score_a_to_b, score_b_to_a])
+                positives.append(avg_score)
             else:
-                negatives.extend([score_a_to_b, score_b_to_a])
+                negatives.append(avg_score)
 
             score_rows.append(
                 {
