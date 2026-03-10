@@ -1,0 +1,169 @@
+# Publish release workflow
+#
+# Triggered when a version tag is pushed (v*).
+# Builds and publishes to:
+# - crates.io (Rust)
+# - PyPI (Python wheels)
+# - GitHub Releases
+
+name: Publish Release
+
+on:
+  push:
+    tags:
+      - 'v[0-9]+.[0-9]+.[0-9]+*'
+
+env:
+  CARGO_TERM_COLOR: always
+
+permissions:
+  contents: write
+  id-token: write
+  attestations: write
+
+jobs:
+  # Extract version metadata
+  prepare:
+    name: Prepare
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.meta.outputs.version }}
+      is_prerelease: ${{ steps.meta.outputs.is_prerelease }}
+    steps:
+      - name: Extract metadata
+        id: meta
+        run: |
+          VERSION=${GITHUB_REF#refs/tags/v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          if [[ "$VERSION" =~ -(alpha|beta|rc) ]]; then
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+          echo "Version: $VERSION"
+
+  # Run full CI first
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  # Build Python wheels
+  build-python-wheels:
+    name: Build Python Wheels
+    needs: [prepare, ci]
+    uses: ./.github/workflows/build-python-wheels.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+
+  # Publish to crates.io
+  publish-crates:
+    name: Publish to crates.io
+    needs: [prepare, ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            target/
+          key: ${{ runner.os }}-cargo-publish-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Publish idphoto to crates.io
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CRATES_IO_TOKEN }}
+        run: |
+          cargo publish -p idphoto --no-verify
+
+  # Publish to PyPI using Trusted Publishing (OIDC)
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [build-python-wheels]
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/idphoto/
+    permissions:
+      id-token: write
+    steps:
+      - name: Download wheels
+        uses: actions/download-artifact@v4
+        with:
+          pattern: wheels-*
+          path: dist/
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la dist/
+
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        # No username/password - uses OIDC trusted publishing
+
+  # Create GitHub Release
+  create-release:
+    name: Create GitHub Release
+    needs: [prepare, publish-crates, publish-pypi]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install git-cliff
+        uses: taiki-e/install-action@v2
+        with:
+          tool: git-cliff
+
+      - name: Generate release notes
+        env:
+          VERSION: ${{ needs.prepare.outputs.version }}
+        run: |
+          git-cliff --tag "v${VERSION}" \
+            --strip header \
+            --latest \
+            -o RELEASE_NOTES.md
+
+          echo ""
+          echo "=== Release Notes ==="
+          cat RELEASE_NOTES.md
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts/
+
+      - name: Prepare release assets
+        run: |
+          mkdir -p release-assets
+
+          # Collect wheels
+          find artifacts -name "*.whl" -exec cp {} release-assets/ \;
+          find artifacts -name "*.tar.gz" -exec cp {} release-assets/ \;
+
+          echo "=== Release assets ==="
+          ls -la release-assets/
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: v${{ needs.prepare.outputs.version }}
+          body_path: RELEASE_NOTES.md
+          prerelease: ${{ needs.prepare.outputs.is_prerelease == 'true' }}
+          files: release-assets/*
+          generate_release_notes: false
+          fail_on_unmatched_files: true
