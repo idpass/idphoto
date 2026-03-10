@@ -185,9 +185,15 @@ def compute_metrics(
                 "frr": float(frr),
             }
 
-    eer = None
+    # Compute FAR/FRR at each threshold, then find the EER crossing point.
+    sweep = []
     for threshold in thresholds:
         tar, far, frr = rates(threshold)
+        sweep.append((threshold, tar, far, frr))
+
+    # Find discrete best (smallest |FAR - FRR|) as fallback.
+    eer = None
+    for threshold, tar, far, frr in sweep:
         distance = abs(far - frr)
         if eer is None or distance < eer["distance"]:
             eer = {
@@ -197,6 +203,29 @@ def compute_metrics(
                 "frr": float(frr),
                 "distance": float(distance),
             }
+
+    # Improve EER via linear interpolation: find adjacent thresholds where
+    # (FAR - FRR) crosses zero and interpolate to the crossing point.
+    for i in range(len(sweep) - 1):
+        t1, _, far1, frr1 = sweep[i]
+        t2, _, far2, frr2 = sweep[i + 1]
+        diff1 = far1 - frr1
+        diff2 = far2 - frr2
+        if diff1 * diff2 < 0:  # sign change: crossing between t1 and t2
+            frac = diff1 / (diff1 - diff2)
+            interp_far = far1 + (far2 - far1) * frac
+            interp_frr = frr1 + (frr2 - frr1) * frac
+            interp_thr = t1 + (t2 - t1) * frac
+            interp_eer = (interp_far + interp_frr) / 2.0
+            interp_dist = abs(interp_far - interp_frr)
+            if interp_dist < eer["distance"]:
+                eer = {
+                    "threshold": float(interp_thr),
+                    "eer": float(interp_eer),
+                    "far": float(interp_far),
+                    "frr": float(interp_frr),
+                    "distance": float(interp_dist),
+                }
 
     far_lookup: Dict[str, Optional[Dict[str, float]]] = {}
     for cap in far_caps:

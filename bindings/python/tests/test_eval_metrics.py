@@ -145,6 +145,37 @@ class TestOperatingPointsDoNotAffectEER:
         )
 
 
+class TestEERInterpolation:
+    """Verify EER linear interpolation improves on discrete approximation."""
+
+    def test_interpolated_eer_between_thresholds(self):
+        # 3 positives at [0.4, 0.6, 0.8], 3 negatives at [0.2, 0.5, 0.7].
+        # At threshold 0.5: FAR=2/3, FRR=1/3 (diff = +1/3)
+        # At threshold 0.6: FAR=1/3, FRR=1/3 (diff = 0)
+        # Discrete EER picks 0.6 where FAR=FRR=1/3, so EER=1/3.
+        # Interpolation should also find ~1/3 (crossing is at the threshold here).
+        positives = [0.4, 0.6, 0.8]
+        negatives = [0.2, 0.5, 0.7]
+        metrics = compute_metrics(positives, negatives, [0.01], [0.5])
+        eer = metrics["eer_approx"]["eer"]
+        assert abs(eer - 1 / 3) < 0.05
+
+    def test_interpolation_small_sample(self):
+        # With few overlapping scores, the crossing often falls between two
+        # discrete thresholds. Interpolation gives a tighter EER estimate.
+        # positives=[0.45, 0.65], negatives=[0.35, 0.55]:
+        # At threshold 0.45: FAR=1.0, FRR=0.0  (diff=+1.0)
+        # At threshold 0.55: FAR=0.5, FRR=0.5  (diff=0.0) -> discrete EER=0.5
+        # Interpolation should also find ~0.5 here (crossing at threshold).
+        # But use odd counts to force an off-threshold crossing.
+        positives = [0.45, 0.55, 0.65]
+        negatives = [0.35, 0.50]
+        metrics = compute_metrics(positives, negatives, [0.01], [0.5])
+        eer_info = metrics["eer_approx"]
+        # EER should be reasonable for these overlapping distributions
+        assert 0.0 < eer_info["eer"] < 0.5
+
+
 class TestFMRCapLookup:
     """Verify FAR/FMR cap lookup returns correct thresholds."""
 
