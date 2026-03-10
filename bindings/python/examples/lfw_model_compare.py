@@ -243,6 +243,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Compression crop mode for query images (default: none).",
     )
     parser.add_argument(
+        "--gallery-crop-mode",
+        default="face-detection",
+        choices=["face-detection", "heuristic", "none"],
+        help=(
+            "Crop mode applied to gallery (original) images before embedding. "
+            "Uses idphoto to crop around the detected face so gallery prep "
+            "matches query prep. (default: face-detection)."
+        ),
+    )
+    parser.add_argument(
         "--query-source",
         default="compressed",
         choices=["original", "compressed"],
@@ -577,9 +587,22 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         embeddings["opencv_sface"] = {"orig": {}, "comp": {}}
 
     ordered_keys = sorted(raw_by_key)
-    print(f"Embedding {len(ordered_keys)} unique images for both models...", flush=True)
+    gallery_crop = args.gallery_crop_mode
+    print(
+        f"Embedding {len(ordered_keys)} unique images for both models "
+        f"(gallery_crop={gallery_crop})...",
+        flush=True,
+    )
     for index, key in enumerate(ordered_keys, start=1):
-        original_image = decode_rgb(raw_by_key[key])
+        raw = raw_by_key[key]
+        if gallery_crop != "none":
+            gallery_result = idphoto.compress(
+                raw, crop_mode=gallery_crop, max_dimension=112,
+                quality=1.0, grayscale=False, output_format="webp",
+            )
+            original_image = decode_rgb(bytes(gallery_result.data))
+        else:
+            original_image = decode_rgb(raw)
         compressed_image = decode_rgb(compressed_by_key[key])
 
         original_rgb, original_align = aligner.align_to_rgb(original_image)
@@ -686,6 +709,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         f"subset={args.subset}, lfw_slice={args.lfw_slice}, pair_count={len(pair_entries)}, "
         f"align_backend={args.align_backend}, "
         f"query_source={args.query_source}, gallery_source={args.gallery_source}, "
+        f"gallery_crop_mode={args.gallery_crop_mode}, "
         f"include_opencv={args.include_opencv}, "
         f"compression={args.preset}/{args.output_format}/gray={args.grayscale}/"
         f"max_dim={args.max_dimension}/max_bytes={args.max_bytes}/crop={args.crop_mode}"
@@ -760,6 +784,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "align_fail_policy": args.align_fail_policy,
                 "query_source": args.query_source,
                 "gallery_source": args.gallery_source,
+                "gallery_crop_mode": args.gallery_crop_mode,
                 "include_opencv": args.include_opencv,
                 "opencv_model_path": str(args.opencv_model_path),
                 "input_size": args.input_size,
