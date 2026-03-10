@@ -75,6 +75,16 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="LFW resize passed to fetch_lfw_pairs (default: 1.0).",
     )
     parser.add_argument(
+        "--lfw-slice",
+        default="full",
+        choices=["full", "default"],
+        help=(
+            "Image cropping for LFW loader. 'full' uses the entire 250x250 image "
+            "(needed for face detection/alignment). 'default' uses sklearn's default "
+            "crop (125x94). (default: full)."
+        ),
+    )
+    parser.add_argument(
         "--max-pairs",
         type=int,
         default=None,
@@ -314,8 +324,16 @@ def prepare_pairs(
     resize: float,
     max_pairs: Optional[int],
     seed: int = 42,
+    lfw_slice: str = "full",
 ) -> tuple[List[Tuple[str, str, bool]], Dict[str, bytes]]:
-    dataset = fetch_lfw_pairs(subset=subset, funneled=True, resize=resize, color=True)
+    if lfw_slice == "full":
+        slice_ = (slice(0, 250), slice(0, 250))
+    else:
+        slice_ = None  # sklearn default: (slice(70, 195), slice(78, 172))
+    kwargs = {"subset": subset, "funneled": True, "resize": resize, "color": True}
+    if slice_ is not None:
+        kwargs["slice_"] = slice_
+    dataset = fetch_lfw_pairs(**kwargs)
     pairs = dataset.pairs
     labels = dataset.target.astype(bool)
 
@@ -511,6 +529,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         resize=args.resize,
         max_pairs=args.max_pairs,
         seed=args.seed,
+        lfw_slice=args.lfw_slice,
     )
     compressed_by_key, compression_stats = compress_unique_images(raw_by_key, args)
 
@@ -664,7 +683,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     print("\n=== Model Comparison ===")
     print(
         "Config: "
-        f"subset={args.subset}, pair_count={len(pair_entries)}, "
+        f"subset={args.subset}, lfw_slice={args.lfw_slice}, pair_count={len(pair_entries)}, "
         f"align_backend={args.align_backend}, "
         f"query_source={args.query_source}, gallery_source={args.gallery_source}, "
         f"include_opencv={args.include_opencv}, "
@@ -731,6 +750,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
             "config": {
                 "subset": args.subset,
                 "resize": args.resize,
+                "lfw_slice": args.lfw_slice,
                 "pair_count": len(pair_entries),
                 "max_pairs": args.max_pairs,
                 "seed": args.seed,
