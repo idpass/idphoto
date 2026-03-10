@@ -339,10 +339,22 @@ impl PhotoCompressor {
     /// Runs up to 8 iterations of binary search (covers 10%-100% at <1% precision).
     /// Returns the highest quality that fits within `max_bytes`, or the minimum-quality
     /// result with `reached_target: false` if the target is unreachable.
+    ///
+    /// The image is decoded, cropped, resized, and flattened once. Only the encode
+    /// step is repeated at each quality level.
     pub fn compress_to_fit(self, max_bytes: usize) -> Result<FitResult, IdPhotoError> {
         if self.max_dimension == 0 {
             return Err(IdPhotoError::InvalidMaxDimension);
         }
+
+        let prepared = compress::prepare_image(
+            &self.input,
+            self.max_dimension,
+            self.grayscale,
+            &self.crop_mode,
+            self.face_margin,
+            self.detector.as_deref(),
+        )?;
 
         let mut low: f32 = 0.1;
         let mut high: f32 = 1.0;
@@ -352,16 +364,7 @@ impl PhotoCompressor {
         for _ in 0..8 {
             let mid = (low + high) / 2.0;
 
-            let result = compress::compress_pipeline(
-                &self.input,
-                self.max_dimension,
-                mid,
-                self.grayscale,
-                &self.crop_mode,
-                &self.format,
-                self.face_margin,
-                self.detector.as_deref(),
-            )?;
+            let result = compress::encode_prepared(&prepared, &self.format, mid)?;
 
             if result.data.len() <= max_bytes {
                 best_quality = mid;
@@ -381,16 +384,7 @@ impl PhotoCompressor {
         }
 
         // Even minimum quality exceeds target — return best-effort result
-        let fallback = compress::compress_pipeline(
-            &self.input,
-            self.max_dimension,
-            0.1,
-            self.grayscale,
-            &self.crop_mode,
-            &self.format,
-            self.face_margin,
-            self.detector.as_deref(),
-        )?;
+        let fallback = compress::encode_prepared(&prepared, &self.format, 0.1)?;
 
         Ok(FitResult {
             photo: fallback,

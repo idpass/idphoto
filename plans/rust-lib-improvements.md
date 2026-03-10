@@ -191,8 +191,8 @@ Add `DETECT_ONLY = "detect-only"` to the `CropMode` enum.
 - [x] 2.3 Add test for 1:1 aspect when face_margin=1.3, verify 3:4 test still passes
 
 ### Phase 3: Split compress_to_fit
-- [ ] 3.1 Extract `PreparedImage`, `prepare_image`, `encode_prepared` (all pub(crate))
-- [ ] 3.2 Update `compress_to_fit` to use prep-then-encode pattern
+- [x] 3.1 Extract `PreparedImage`, `prepare_image`, `encode_prepared` (all pub(crate))
+- [x] 3.2 Update `compress_to_fit` to use prep-then-encode pattern
 
 ### Phase 4: CropMode::DetectOnly
 - [ ] 4.1 Add DetectOnly variant to CropMode and apply_crop (no fallback to heuristic)

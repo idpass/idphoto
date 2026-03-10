@@ -299,18 +299,28 @@ fn transform_face_bounds(
     }
 }
 
-/// Full compression pipeline: decode → crop → resize → flatten → grayscale → encode.
+/// Image after decode, crop, resize, flatten, and grayscale, ready for encoding.
+///
+/// The `rgb` field already has grayscale applied (R=G=B) when `grayscale` is true.
+/// The `grayscale` bool is carried forward for the JPEG encoding path, which uses
+/// single-channel Luma8 instead of Rgb8 triplets.
+pub(crate) struct PreparedImage {
+    pub(crate) rgb: RgbImage,
+    pub(crate) grayscale: bool,
+    pub(crate) original_size: usize,
+    pub(crate) face_bounds: Option<FaceBounds>,
+}
+
+/// Preparation phase: decode → crop → resize → flatten → grayscale.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn compress_pipeline(
+pub(crate) fn prepare_image(
     input: &[u8],
     max_dimension: u32,
-    quality: f32,
     grayscale: bool,
     crop_mode: &CropMode,
-    format: &OutputFormat,
     face_margin: f32,
     detector: Option<&dyn FaceDetector>,
-) -> Result<CompressedPhoto, IdPhotoError> {
+) -> Result<PreparedImage, IdPhotoError> {
     let decoded = decode_image(input)?;
 
     if decoded.width() == 0 || decoded.height() == 0 {
@@ -323,22 +333,51 @@ pub(crate) fn compress_pipeline(
     let output_size = (resized.width(), resized.height());
     let flattened = flatten_alpha(&resized);
     let rgb = apply_grayscale(flattened, grayscale);
-    let data = encode_image(&rgb, format, quality, grayscale)?;
 
-    // Transform face bounds to output coordinates
     let face_bounds = crop_result
         .face_bounds
         .as_ref()
         .map(|face| transform_face_bounds(face, crop_result.crop_offset, crop_size, output_size));
 
-    Ok(CompressedPhoto {
-        data,
-        format: format.clone(),
-        width: rgb.width(),
-        height: rgb.height(),
+    Ok(PreparedImage {
+        rgb,
+        grayscale,
         original_size: input.len(),
         face_bounds,
     })
+}
+
+/// Encode a prepared image to the specified format and quality.
+pub(crate) fn encode_prepared(
+    prepared: &PreparedImage,
+    format: &OutputFormat,
+    quality: f32,
+) -> Result<CompressedPhoto, IdPhotoError> {
+    let data = encode_image(&prepared.rgb, format, quality, prepared.grayscale)?;
+    Ok(CompressedPhoto {
+        data,
+        format: format.clone(),
+        width: prepared.rgb.width(),
+        height: prepared.rgb.height(),
+        original_size: prepared.original_size,
+        face_bounds: prepared.face_bounds.clone(),
+    })
+}
+
+/// Full compression pipeline: decode → crop → resize → flatten → grayscale → encode.
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn compress_pipeline(
+    input: &[u8],
+    max_dimension: u32,
+    quality: f32,
+    grayscale: bool,
+    crop_mode: &CropMode,
+    format: &OutputFormat,
+    face_margin: f32,
+    detector: Option<&dyn FaceDetector>,
+) -> Result<CompressedPhoto, IdPhotoError> {
+    let prepared = prepare_image(input, max_dimension, grayscale, crop_mode, face_margin, detector)?;
+    encode_prepared(&prepared, format, quality)
 }
 
 /// Detect the input image format from the raw bytes.
