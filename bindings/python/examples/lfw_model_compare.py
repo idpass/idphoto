@@ -233,12 +233,22 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Compression crop mode for query images (default: none).",
     )
     parser.add_argument(
+        "--query-source",
+        default="compressed",
+        choices=["original", "compressed"],
+        help=(
+            "Query source for scoring. 'compressed' = use compressed embeddings "
+            "as probe (default). 'original' = use original embeddings as probe "
+            "(for baseline comparison)."
+        ),
+    )
+    parser.add_argument(
         "--gallery-source",
         default="original",
         choices=["original", "compressed"],
         help=(
-            "Gallery source for scoring. 'original' = compressed vs original "
-            "(verification style). 'compressed' = compressed vs compressed."
+            "Gallery source for scoring. 'original' = vs original "
+            "(verification style). 'compressed' = vs compressed."
         ),
     )
     parser.add_argument(
@@ -608,6 +618,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     results: Dict[str, Dict[str, object]] = {}
     score_rows: List[Dict[str, object]] = []
 
+    query_embed_key = "orig" if args.query_source == "original" else "comp"
     gallery_embed_key = "orig" if args.gallery_source == "original" else "comp"
 
     model_names = ["int8", "official"]
@@ -619,11 +630,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         negatives: List[float] = []
 
         for pair_index, (key_a, key_b, is_same) in enumerate(pair_entries, start=1):
-            query_a = embeddings[model_name]["comp"][key_a]
+            query_a = embeddings[model_name][query_embed_key][key_a]
             gallery_b = embeddings[model_name][gallery_embed_key][key_b]
             score_a_to_b = float(np.dot(query_a, gallery_b))
 
-            query_b = embeddings[model_name]["comp"][key_b]
+            query_b = embeddings[model_name][query_embed_key][key_b]
             gallery_a = embeddings[model_name][gallery_embed_key][key_a]
             score_b_to_a = float(np.dot(query_b, gallery_a))
 
@@ -655,7 +666,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         "Config: "
         f"subset={args.subset}, pair_count={len(pair_entries)}, "
         f"align_backend={args.align_backend}, "
-        f"gallery_source={args.gallery_source}, "
+        f"query_source={args.query_source}, gallery_source={args.gallery_source}, "
         f"include_opencv={args.include_opencv}, "
         f"compression={args.preset}/{args.output_format}/gray={args.grayscale}/"
         f"max_dim={args.max_dimension}/max_bytes={args.max_bytes}/crop={args.crop_mode}"
@@ -727,6 +738,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "align_backend": args.align_backend,
                 "align_det_size": args.align_det_size,
                 "align_fail_policy": args.align_fail_policy,
+                "query_source": args.query_source,
                 "gallery_source": args.gallery_source,
                 "include_opencv": args.include_opencv,
                 "opencv_model_path": str(args.opencv_model_path),
