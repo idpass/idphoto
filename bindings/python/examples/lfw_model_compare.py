@@ -84,6 +84,12 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--seed",
+        type=int,
+        default=42,
+        help="Random seed for shuffling pairs before --max-pairs truncation (default: 42).",
+    )
+    parser.add_argument(
         "--providers",
         default="CPUExecutionProvider",
         help="Comma-separated ONNX Runtime providers.",
@@ -297,6 +303,7 @@ def prepare_pairs(
     subset: str,
     resize: float,
     max_pairs: Optional[int],
+    seed: int = 42,
 ) -> tuple[List[Tuple[str, str, bool]], Dict[str, bytes]]:
     dataset = fetch_lfw_pairs(subset=subset, funneled=True, resize=resize, color=True)
     pairs = dataset.pairs
@@ -336,6 +343,10 @@ def prepare_pairs(
             )
 
     if max_pairs is not None and max_pairs > 0 and max_pairs < len(pair_entries):
+        import random
+        rng = random.Random(seed)
+        rng.shuffle(positives)
+        rng.shuffle(negatives)
         n_pos = max_pairs // 2
         n_neg = max_pairs - n_pos
         selected = positives[:n_pos] + negatives[:n_neg]
@@ -489,6 +500,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         subset=args.subset,
         resize=args.resize,
         max_pairs=args.max_pairs,
+        seed=args.seed,
     )
     compressed_by_key, compression_stats = compress_unique_images(raw_by_key, args)
 
@@ -703,6 +715,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 "resize": args.resize,
                 "pair_count": len(pair_entries),
                 "max_pairs": args.max_pairs,
+                "seed": args.seed,
                 "providers": list(providers),
                 "align_backend": args.align_backend,
                 "align_det_size": args.align_det_size,
