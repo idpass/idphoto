@@ -119,7 +119,7 @@ pub enum Preset {
 
     /// For algorithmic face matching in QR codes.
     ///
-    /// - 48px max dimension (3:4 portrait → 36×48)
+    /// - 48px max dimension (square crop → 48×48)
     /// - WebP lossy at quality 0.6 with ICC stripping
     /// - Grayscale (single channel reduces payload)
     /// - Face detection crop, tight framing (face only, minimal margin)

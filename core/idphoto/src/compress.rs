@@ -777,10 +777,20 @@ mod tests {
         .unwrap();
         assert_eq!(result.width, none_result.width);
         assert_eq!(result.height, none_result.height);
-        // Face bounds should be present
+        // Face bounds should be present and in output coordinates
+        let bounds = result
+            .face_bounds
+            .as_ref()
+            .expect("face_bounds should be populated in DetectOnly when a face is found");
+        assert!(bounds.x >= 0.0, "face x should be non-negative");
+        assert!(bounds.y >= 0.0, "face y should be non-negative");
         assert!(
-            result.face_bounds.is_some(),
-            "face_bounds should be populated in DetectOnly when a face is found"
+            bounds.width > 0.0 && bounds.width <= result.width as f64,
+            "face width should be within output bounds"
+        );
+        assert!(
+            bounds.height > 0.0 && bounds.height <= result.height as f64,
+            "face height should be within output bounds"
         );
     }
 

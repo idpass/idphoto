@@ -162,7 +162,7 @@ impl FitResult {
 ///     max_dimension: Maximum output dimension in pixels (overrides preset, default: 48)
 ///     quality: Compression quality 0.0–1.0 (overrides preset, default: 0.6)
 ///     grayscale: Convert to grayscale (overrides preset, default: False)
-///     crop_mode: "heuristic", "none", or "face-detection" (overrides preset)
+///     crop_mode: "heuristic", "none", "face-detection", or "detect-only" (overrides preset)
 ///     output_format: "webp" or "jpeg" (overrides preset)
 ///     face_margin: Face detection crop margin (overrides preset, default: 2.0)
 ///
@@ -246,7 +246,7 @@ fn compress(
 ///     preset: "qr-code", "qr-code-match", "print", or "display" (optional, sets all defaults)
 ///     max_dimension: Maximum output dimension in pixels (overrides preset)
 ///     grayscale: Convert to grayscale (overrides preset)
-///     crop_mode: "heuristic", "none", or "face-detection" (overrides preset)
+///     crop_mode: "heuristic", "none", "face-detection", or "detect-only" (overrides preset)
 ///     output_format: "webp" or "jpeg" (overrides preset)
 ///     face_margin: Face detection crop margin (overrides preset, default: 2.0)
 ///
