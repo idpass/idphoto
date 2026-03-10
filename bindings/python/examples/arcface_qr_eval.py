@@ -5,11 +5,7 @@ from __future__ import annotations
 
 import argparse
 import csv
-import io
 import math
-import shutil
-import sys
-import urllib.request
 from dataclasses import dataclass
 from pathlib import Path
 from statistics import mean
@@ -26,6 +22,18 @@ except ImportError as exc:  # pragma: no cover - runtime environment check
 import numpy as np
 import onnxruntime as ort
 from PIL import Image
+
+from eval_utils import (
+    cosine_similarity,
+    decode_rgb,
+    ensure_model,
+    image_to_model_tensor,
+    l2_distance,
+    l2_normalize,
+    parse_budgets,
+    parse_providers,
+    resize_and_pad_rgb,
+)
 
 DEFAULT_MODEL_URL = (
     "https://huggingface.co/onnxmodelzoo/arcfaceresnet100-11-int8/"
@@ -163,23 +171,6 @@ class Variant:
     height: int
     quality_used: Optional[float] = None
     reached_target: Optional[bool] = None
-
-
-def parse_budgets(raw_value: str) -> List[int]:
-    if not raw_value.strip():
-        return []
-    budgets: List[int] = []
-    for part in raw_value.split(","):
-        token = part.strip()
-        if not token:
-            continue
-        value = int(token)
-        if value <= 0:
-            raise argparse.ArgumentTypeError(
-                f"Budget values must be positive integers, got: {value}"
-            )
-        budgets.append(value)
-    return budgets
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -366,26 +357,6 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def ensure_model(model_path: Path, model_url: str, download_model: bool) -> None:
-    if model_path.exists():
-        return
-    if not download_model:
-        raise FileNotFoundError(
-            f"Model not found at {model_path}. Re-run with --download-model."
-        )
-    model_path.parent.mkdir(parents=True, exist_ok=True)
-    print(f"Downloading model to {model_path} ...", file=sys.stderr)
-    with urllib.request.urlopen(model_url) as response, model_path.open("wb") as output:
-        shutil.copyfileobj(response, output)
-
-
-def parse_providers(raw_value: str) -> List[str]:
-    providers = [token.strip() for token in raw_value.split(",") if token.strip()]
-    if not providers:
-        raise ValueError("At least one ONNX Runtime provider is required")
-    return providers
-
-
 def discover_input_files(inputs: Sequence[str], recursive: bool) -> List[Path]:
     files: List[Path] = []
     for entry in inputs:
@@ -410,61 +381,6 @@ def discover_input_files(inputs: Sequence[str], recursive: bool) -> List[Path]:
     return unique_files
 
 
-def decode_rgb(data: bytes) -> Image.Image:
-    with Image.open(io.BytesIO(data)) as image:
-        return image.convert("RGB")
-
-
-def resize_and_pad_rgb(image: Image.Image, input_size: int) -> Image.Image:
-    square = pad_to_square(image.convert("RGB"))
-    return square.resize((input_size, input_size), Image.Resampling.BILINEAR)
-
-
-def pad_to_square(image: Image.Image) -> Image.Image:
-    width, height = image.size
-    if width == height:
-        return image
-    side = max(width, height)
-    square = Image.new("RGB", (side, side), (0, 0, 0))
-    x = (side - width) // 2
-    y = (side - height) // 2
-    square.paste(image, (x, y))
-    return square
-
-
-def image_to_model_tensor(
-    aligned_rgb: np.ndarray,
-    input_type: str,
-    normalization: str,
-    color_order: str,
-) -> np.ndarray:
-    array = np.asarray(aligned_rgb, dtype=np.float32)
-    if color_order == "bgr":
-        array = array[..., ::-1]
-
-    if normalization == "minus1to1":
-        array = (array - 127.5) / 128.0
-    elif normalization == "zero_to_one":
-        array = array / 255.0
-
-    nchw = np.transpose(array, (2, 0, 1))[None, ...]
-
-    if input_type == "tensor(float)":
-        return nchw.astype(np.float32)
-    if input_type == "tensor(uint8)":
-        return np.clip(np.round(nchw), 0, 255).astype(np.uint8)
-    if input_type == "tensor(int8)":
-        return np.clip(np.round(nchw), -128, 127).astype(np.int8)
-    raise ValueError(f"Unsupported model input type: {input_type}")
-
-
-def l2_normalize(vector: np.ndarray) -> np.ndarray:
-    norm = np.linalg.norm(vector)
-    if norm == 0.0:
-        raise ValueError("Zero-norm embedding encountered")
-    return vector / norm
-
-
 def embed_image(
     session: ort.InferenceSession,
     input_name: str,
@@ -483,14 +399,6 @@ def embed_image(
     output = session.run(None, {input_name: tensor})[0]
     embedding = np.asarray(output, dtype=np.float32).reshape(-1)
     return l2_normalize(embedding), align_status
-
-
-def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.dot(a, b))
-
-
-def l2_distance(a: np.ndarray, b: np.ndarray) -> float:
-    return float(np.linalg.norm(a - b))
 
 
 def bytes_to_base64_length(byte_count: int) -> int:

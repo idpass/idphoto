@@ -5,14 +5,12 @@ from __future__ import annotations
 
 import argparse
 import csv
-import hashlib
-import io
 import json
 import sys
 from collections import Counter
 from pathlib import Path
 from statistics import mean
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
 try:
     import idphoto
@@ -31,11 +29,18 @@ from arcface_qr_eval import (
     DEFAULT_MODEL_PATH,
     DEFAULT_MODEL_URL,
     FaceAligner,
+)
+from eval_utils import (
+    compute_metrics,
     decode_rgb,
     ensure_model,
+    hash_key,
     image_to_model_tensor,
+    image_to_png_bytes,
     l2_normalize,
+    parse_float_list,
     parse_providers,
+    print_model_summary,
 )
 
 DEFAULT_OFFICIAL_MODEL_PATH = (
@@ -48,18 +53,6 @@ DEFAULT_OPENCV_MODEL_URL = (
 )
 DEFAULT_OPERATING_POINTS = "0.10,0.15,0.20,0.25,0.30"
 DEFAULT_FAR_CAPS = "0.10,0.05,0.01,0.001"
-
-
-def parse_float_list(raw_value: str) -> List[float]:
-    if not raw_value.strip():
-        return []
-    values: List[float] = []
-    for token in raw_value.split(","):
-        item = token.strip()
-        if not item:
-            continue
-        values.append(float(item))
-    return values
 
 
 def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
@@ -300,24 +293,6 @@ def ensure_official_model(
         )
 
 
-def image_to_png_bytes(image_array: np.ndarray) -> bytes:
-    array = np.asarray(image_array)
-    if np.issubdtype(array.dtype, np.floating):
-        array = np.clip(array * 255.0, 0.0, 255.0).astype(np.uint8)
-    elif array.dtype != np.uint8:
-        array = np.clip(array, 0, 255).astype(np.uint8)
-
-    mode = "L" if array.ndim == 2 else "RGB"
-    image = Image.fromarray(array, mode=mode)
-    output = io.BytesIO()
-    image.save(output, format="PNG")
-    return output.getvalue()
-
-
-def hash_key(raw: bytes) -> str:
-    return hashlib.sha1(raw).hexdigest()
-
-
 def prepare_pairs(
     subset: str,
     resize: float,
@@ -487,158 +462,6 @@ def embed_opencv(model, aligned_rgb: np.ndarray, input_size: int) -> np.ndarray:
     return l2_normalize(feature)
 
 
-def compute_metrics(
-    positive_scores: List[float],
-    negative_scores: List[float],
-    far_caps: Sequence[float],
-    operating_points: Sequence[float],
-) -> Dict[str, object]:
-    pos = np.array(positive_scores, dtype=np.float64)
-    neg = np.array(negative_scores, dtype=np.float64)
-
-    if len(pos) == 0 or len(neg) == 0:
-        raise RuntimeError("Both positive and negative scores are required for metrics.")
-
-    def rates(threshold: float) -> tuple[float, float, float]:
-        far = float(np.mean(neg >= threshold))
-        frr = float(np.mean(pos < threshold))
-        tar = 1.0 - frr
-        return tar, far, frr
-
-    threshold_values = list(pos) + list(neg) + list(operating_points)
-    threshold_values.append(float(neg.max()) + 1e-6)
-    threshold_values.append(float(pos.min()) - 1e-6)
-    thresholds = sorted(set(threshold_values))
-
-    best_bal = None
-    for threshold in thresholds:
-        tar, far, frr = rates(threshold)
-        balanced_accuracy = 1.0 - (far + frr) / 2.0
-        if best_bal is None or balanced_accuracy > best_bal["balanced_accuracy"]:
-            best_bal = {
-                "threshold": float(threshold),
-                "balanced_accuracy": float(balanced_accuracy),
-                "tar": float(tar),
-                "far": float(far),
-                "frr": float(frr),
-            }
-
-    eer = None
-    for threshold in thresholds:
-        tar, far, frr = rates(threshold)
-        distance = abs(far - frr)
-        if eer is None or distance < eer["distance"]:
-            eer = {
-                "threshold": float(threshold),
-                "eer": float((far + frr) / 2.0),
-                "far": float(far),
-                "frr": float(frr),
-                "distance": float(distance),
-            }
-
-    far_lookup: Dict[str, Optional[Dict[str, float]]] = {}
-    for cap in far_caps:
-        candidates: List[Dict[str, float]] = []
-        for threshold in thresholds:
-            tar, far, frr = rates(threshold)
-            if far <= cap:
-                candidates.append(
-                    {
-                        "threshold": float(threshold),
-                        "tar": float(tar),
-                        "far": float(far),
-                        "frr": float(frr),
-                    }
-                )
-        if candidates:
-            candidates.sort(key=lambda item: (item["tar"], item["threshold"]), reverse=True)
-            far_lookup[f"{cap:g}"] = candidates[0]
-        else:
-            far_lookup[f"{cap:g}"] = None
-
-    operating = []
-    for threshold in operating_points:
-        tar, far, frr = rates(threshold)
-        operating.append(
-            {
-                "threshold": float(threshold),
-                "tar": float(tar),
-                "far": float(far),
-                "frr": float(frr),
-            }
-        )
-
-    return {
-        "positive": {
-            "count": int(len(pos)),
-            "mean": float(pos.mean()),
-            "min": float(pos.min()),
-            "max": float(pos.max()),
-        },
-        "negative": {
-            "count": int(len(neg)),
-            "mean": float(neg.mean()),
-            "min": float(neg.min()),
-            "max": float(neg.max()),
-        },
-        "best_balanced": best_bal,
-        "eer_approx": eer,
-        "best_under_far": far_lookup,
-        "operating_points": operating,
-    }
-
-
-def print_model_summary(name: str, metrics: Dict[str, object], far_caps: Sequence[float]) -> None:
-    positive = metrics["positive"]
-    negative = metrics["negative"]
-    best_bal = metrics["best_balanced"]
-    eer = metrics["eer_approx"]
-    far_lookup = metrics["best_under_far"]
-
-    print(f"[{name}]")
-    print(
-        "  positive cosine: "
-        f"count={positive['count']} "
-        f"mean={positive['mean']:.6f} "
-        f"min={positive['min']:.6f} "
-        f"max={positive['max']:.6f}"
-    )
-    print(
-        "  negative cosine: "
-        f"count={negative['count']} "
-        f"mean={negative['mean']:.6f} "
-        f"min={negative['min']:.6f} "
-        f"max={negative['max']:.6f}"
-    )
-    print(
-        "  best balanced: "
-        f"thr={best_bal['threshold']:.6f} "
-        f"bal_acc={best_bal['balanced_accuracy']:.6f} "
-        f"TAR={best_bal['tar']:.6f} "
-        f"FAR={best_bal['far']:.6f} "
-        f"FRR={best_bal['frr']:.6f}"
-    )
-    print(
-        "  eer approx: "
-        f"thr={eer['threshold']:.6f} "
-        f"EER={eer['eer']:.6f} "
-        f"FAR={eer['far']:.6f} "
-        f"FRR={eer['frr']:.6f}"
-    )
-    for cap in far_caps:
-        item = far_lookup[f"{cap:g}"]
-        if item is None:
-            print(f"  FAR<={cap:g}: no threshold")
-        else:
-            print(
-                f"  FAR<={cap:g}: "
-                f"thr={item['threshold']:.6f} "
-                f"TAR={item['tar']:.6f} "
-                f"FAR={item['far']:.6f} "
-                f"FRR={item['frr']:.6f}"
-            )
-
-
 def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     far_caps = parse_float_list(args.far_caps)
@@ -746,6 +569,8 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
         original_bgr = original_rgb[..., ::-1]
         compressed_bgr = compressed_rgb[..., ::-1]
+        # buffalo_l/w600k_r50 returns pre-normalized embeddings;
+        # l2_normalize is a safety net, not a transformation.
         original_official = np.asarray(official_model.get_feat(original_bgr), dtype=np.float32)
         compressed_official = np.asarray(
             official_model.get_feat(compressed_bgr), dtype=np.float32
