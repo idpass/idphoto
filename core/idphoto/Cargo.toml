@@ -14,11 +14,13 @@ categories = ["multimedia::images", "encoding"]
 [features]
 default = []
 rustface = ["dep:rustface"]
+yunet = ["dep:tract-onnx"]
 
 [dependencies]
 image = { version = "0.25", default-features = false, features = ["jpeg", "png", "webp"] }
 thiserror = "2"
 rustface = { version = "0.1", default-features = false, optional = true }
+tract-onnx = { version = "0.21", optional = true, default-features = false }
 webp = { version = "0.3.1", default-features = false }
 
 [[example]]

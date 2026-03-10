@@ -3,6 +3,7 @@ use image::imageops::FilterType;
 use image::{DynamicImage, ImageEncoder, ImageFormat, RgbImage, RgbaImage};
 use webp::Encoder as LibWebpEncoder;
 
+use crate::align::align_face;
 use crate::crop::{portrait_crop, CropRegion};
 use crate::error::IdPhotoError;
 use crate::face_detector::{FaceBounds, FaceDetector};
@@ -21,39 +22,53 @@ pub(crate) fn decode_image(input: &[u8]) -> Result<DynamicImage, IdPhotoError> {
     image::load_from_memory(input).map_err(|e| IdPhotoError::DecodeError(e.to_string()))
 }
 
-/// Detect a face in the image using the provided detector.
-///
-/// Returns the best (highest-confidence) face, or `None` if no faces are found.
-fn detect_face(image: &DynamicImage, detector: Option<&dyn FaceDetector>) -> Option<FaceBounds> {
-    let detector = match detector {
-        Some(d) => d,
-        None => {
-            // Try built-in rustface backend
-            #[cfg(feature = "rustface")]
-            {
-                let builtin = crate::RustfaceDetector::new();
-                let gray = image::imageops::grayscale(image);
-                let faces = builtin.detect(gray.as_raw(), gray.width(), gray.height());
-                return faces.into_iter().max_by(|a, b| {
-                    a.confidence
-                        .partial_cmp(&b.confidence)
-                        .unwrap_or(std::cmp::Ordering::Equal)
-                });
-            }
-            #[cfg(not(feature = "rustface"))]
-            {
-                return None;
-            }
-        }
-    };
-
-    let gray = image::imageops::grayscale(image);
-    let faces = detector.detect(gray.as_raw(), gray.width(), gray.height());
+/// Pick the best face from a list by confidence.
+fn best_face(faces: Vec<FaceBounds>) -> Option<FaceBounds> {
     faces.into_iter().max_by(|a, b| {
         a.confidence
             .partial_cmp(&b.confidence)
             .unwrap_or(std::cmp::Ordering::Equal)
     })
+}
+
+/// Detect a face using the provided detector or built-in backends.
+/// Prefers YuNet (landmarks) over rustface (bbox only) when no explicit detector is given.
+#[allow(clippy::needless_return)]
+fn detect_face(image: &DynamicImage, detector: Option<&dyn FaceDetector>) -> Option<FaceBounds> {
+    if let Some(d) = detector {
+        let gray = image::imageops::grayscale(image);
+        return best_face(d.detect(gray.as_raw(), gray.width(), gray.height()));
+    }
+    #[cfg(feature = "yunet")]
+    {
+        let builtin = crate::YunetDetector::new();
+        let gray = image::imageops::grayscale(image);
+        return best_face(builtin.detect(gray.as_raw(), gray.width(), gray.height()));
+    }
+    #[cfg(all(feature = "rustface", not(feature = "yunet")))]
+    {
+        return detect_face_fast(image);
+    }
+    #[cfg(not(any(feature = "rustface", feature = "yunet")))]
+    {
+        return None;
+    }
+}
+
+/// Detect a face using the fastest available backend (rustface preferred).
+/// Used by FaceBbox where landmarks are not needed.
+#[allow(clippy::needless_return)]
+fn detect_face_fast(image: &DynamicImage) -> Option<FaceBounds> {
+    #[cfg(feature = "rustface")]
+    {
+        let builtin = crate::RustfaceDetector::new();
+        let gray = image::imageops::grayscale(image);
+        return best_face(builtin.detect(gray.as_raw(), gray.width(), gray.height()));
+    }
+    #[cfg(not(feature = "rustface"))]
+    {
+        return detect_face(image, None);
+    }
 }
 
 /// Compute a crop region centered on a detected face.
@@ -150,6 +165,47 @@ fn apply_crop(
         CropMode::FaceDetection => {
             // Face detection with fallback to heuristic
             match detect_face(image, detector) {
+                Some(face) => {
+                    // When 5-point landmarks are available, use similarity-transform
+                    // alignment to produce a canonical 112x112 face image (ArcFace layout).
+                    // This dramatically improves face recognition accuracy. Falls back to
+                    // bounding-box crop if alignment fails.
+                    if let Some(ref landmarks) = face.landmarks {
+                        if let Some(aligned) = align_face(image, landmarks) {
+                            return CropResult {
+                                image: aligned,
+                                face_bounds: Some(face),
+                                crop_offset: (0, 0),
+                            };
+                        }
+                    }
+                    let region =
+                        compute_face_crop(&face, image.width(), image.height(), face_margin);
+                    CropResult {
+                        image: image.crop_imm(region.x, region.y, region.width, region.height),
+                        face_bounds: Some(face),
+                        crop_offset: (region.x, region.y),
+                    }
+                }
+                None => {
+                    let CropRegion {
+                        x,
+                        y,
+                        width,
+                        height,
+                    } = portrait_crop(image.width(), image.height());
+                    CropResult {
+                        image: image.crop_imm(x, y, width, height),
+                        face_bounds: None,
+                        crop_offset: (x, y),
+                    }
+                }
+            }
+        }
+        CropMode::FaceBbox => {
+            // Face detection with bounding-box crop only (no alignment).
+            // Uses the fast backend (rustface) since landmarks are not needed.
+            match detect_face_fast(image) {
                 Some(face) => {
                     let region =
                         compute_face_crop(&face, image.width(), image.height(), face_margin);
@@ -305,6 +361,31 @@ fn transform_face_bounds(
         width: face.width * scale_x,
         height: face.height * scale_y,
         confidence: face.confidence,
+        landmarks: face.landmarks.as_ref().map(|lm| {
+            use crate::face_detector::FaceLandmarks;
+            FaceLandmarks {
+                right_eye: (
+                    (lm.right_eye.0 - crop_offset.0 as f64) * scale_x,
+                    (lm.right_eye.1 - crop_offset.1 as f64) * scale_y,
+                ),
+                left_eye: (
+                    (lm.left_eye.0 - crop_offset.0 as f64) * scale_x,
+                    (lm.left_eye.1 - crop_offset.1 as f64) * scale_y,
+                ),
+                nose: (
+                    (lm.nose.0 - crop_offset.0 as f64) * scale_x,
+                    (lm.nose.1 - crop_offset.1 as f64) * scale_y,
+                ),
+                right_mouth: (
+                    (lm.right_mouth.0 - crop_offset.0 as f64) * scale_x,
+                    (lm.right_mouth.1 - crop_offset.1 as f64) * scale_y,
+                ),
+                left_mouth: (
+                    (lm.left_mouth.0 - crop_offset.0 as f64) * scale_x,
+                    (lm.left_mouth.1 - crop_offset.1 as f64) * scale_y,
+                ),
+            }
+        }),
     }
 }
 
@@ -385,7 +466,14 @@ pub(crate) fn compress_pipeline(
     face_margin: f32,
     detector: Option<&dyn FaceDetector>,
 ) -> Result<CompressedPhoto, IdPhotoError> {
-    let prepared = prepare_image(input, max_dimension, grayscale, crop_mode, face_margin, detector)?;
+    let prepared = prepare_image(
+        input,
+        max_dimension,
+        grayscale,
+        crop_mode,
+        face_margin,
+        detector,
+    )?;
     encode_prepared(&prepared, format, quality)
 }
 
@@ -414,6 +502,7 @@ mod tests {
                     width,
                     height,
                     confidence: 10.0,
+                    landmarks: None,
                 }],
             }
         }
@@ -873,6 +962,7 @@ mod tests {
             width: 50.0,
             height: 50.0,
             confidence: 5.0,
+            landmarks: None,
         };
         let region = compute_face_crop(&face, 400, 600, 2.0);
         let aspect = region.width as f64 / region.height as f64;
@@ -890,6 +980,7 @@ mod tests {
             width: 50.0,
             height: 50.0,
             confidence: 5.0,
+            landmarks: None,
         };
         let region = compute_face_crop(&face, 400, 600, 1.3);
         let aspect = region.width as f64 / region.height as f64;
@@ -907,6 +998,7 @@ mod tests {
             width: 50.0,
             height: 60.0,
             confidence: 8.0,
+            landmarks: None,
         };
         // Crop at (50, 100), crop size 200x300, output size 20x30
         let transformed = transform_face_bounds(&face, (50, 100), (200, 300), (20, 30));

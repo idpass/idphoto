@@ -30,3 +30,14 @@ Thumbs.db
 # Build artifacts
 uv.lock
 site/
+
+# Evaluation models (large, downloaded on demand)
+model/arcfaceresnet100-11-int8.onnx
+model/face_recognition_sface_2021dec.onnx
+bindings/python/examples/model/
+
+# Evaluation results
+results/
+
+# Plan files (local working notes)
+plans/

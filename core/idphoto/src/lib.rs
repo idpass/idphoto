@@ -16,6 +16,7 @@
 //! ```
 #![warn(missing_docs)]
 
+mod align;
 mod compress;
 mod crop;
 mod error;
@@ -25,14 +26,20 @@ pub mod face_detector;
 /// Built-in SeetaFace-based face detector backend.
 pub mod rustface_backend;
 mod webp_strip;
+#[cfg(feature = "yunet")]
+/// Built-in YuNet face detector backend with 5-point landmark support.
+pub mod yunet_backend;
 
 /// Error type returned by idphoto operations.
 pub use error::IdPhotoError;
-/// Face detection trait and face bounding-box type.
-pub use face_detector::{FaceBounds, FaceDetector};
+/// Face detection trait, bounding-box type, and landmark type.
+pub use face_detector::{FaceBounds, FaceDetector, FaceLandmarks};
 #[cfg(feature = "rustface")]
 /// Built-in detector that loads the bundled SeetaFace model.
 pub use rustface_backend::RustfaceDetector;
+#[cfg(feature = "yunet")]
+/// Built-in YuNet detector with 5-point facial landmark detection.
+pub use yunet_backend::YunetDetector;
 
 /// How to crop the input image before resizing.
 #[derive(Debug, Clone, Default)]
@@ -42,7 +49,14 @@ pub enum CropMode {
     Heuristic,
 
     /// Use face detection to center on the face, with fallback to Heuristic.
+    /// When 5-point landmarks are available (e.g. from YuNet), uses
+    /// similarity-transform alignment to produce a canonical face image.
     FaceDetection,
+
+    /// Face detection with bounding-box crop only (no landmark alignment).
+    /// Uses the same detection backend as `FaceDetection`, but always crops
+    /// to the bounding box with `face_margin`, even when landmarks are available.
+    FaceBbox,
 
     /// Detect faces and report bounds, but do not crop the image.
     ///

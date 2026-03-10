@@ -1,3 +1,4 @@
+use std::cell::RefCell;
 use std::sync::LazyLock;
 
 use crate::face_detector::{FaceBounds, FaceDetector};
@@ -11,6 +12,26 @@ static SEETAFACE_MODEL: LazyLock<rustface::Model> = LazyLock::new(|| {
     rustface::read_model(std::io::Cursor::new(model_data))
         .expect("failed to load bundled SeetaFace model")
 });
+
+thread_local! {
+    /// Per-thread cached detector, avoids cloning the model on every call.
+    static DETECTOR: RefCell<Option<Box<dyn rustface::Detector>>> = const { RefCell::new(None) };
+}
+
+fn with_detector<R>(f: impl FnOnce(&mut dyn rustface::Detector) -> R) -> R {
+    DETECTOR.with(|cell| {
+        let mut opt = cell.borrow_mut();
+        if opt.is_none() {
+            let mut det = rustface::create_detector_with_model(SEETAFACE_MODEL.clone());
+            det.set_min_face_size(20);
+            det.set_score_thresh(2.0);
+            det.set_pyramid_scale_factor(0.8);
+            det.set_slide_window_step(4, 4);
+            *opt = Some(det);
+        }
+        f(opt.as_deref_mut().unwrap())
+    })
+}
 
 /// Face detector backed by the `rustface` crate (SeetaFace engine).
 ///
@@ -33,13 +54,9 @@ impl Default for RustfaceDetector {
 
 impl FaceDetector for RustfaceDetector {
     fn detect(&self, gray: &[u8], width: u32, height: u32) -> Vec<FaceBounds> {
-        let mut detector = rustface::create_detector_with_model(SEETAFACE_MODEL.clone());
-        detector.set_min_face_size(20);
-        detector.set_score_thresh(2.0);
-        detector.set_pyramid_scale_factor(0.8);
-        detector.set_slide_window_step(4, 4);
-
-        let faces = detector.detect(&rustface::ImageData::new(gray, width, height));
+        let faces = with_detector(|detector| {
+            detector.detect(&rustface::ImageData::new(gray, width, height))
+        });
 
         faces
             .iter()
@@ -51,6 +68,7 @@ impl FaceDetector for RustfaceDetector {
                     width: bbox.width() as f64,
                     height: bbox.height() as f64,
                     confidence: face.score(),
+                    landmarks: None,
                 }
             })
             .collect()
