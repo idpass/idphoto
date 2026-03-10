@@ -174,6 +174,15 @@ fn apply_crop(
                 }
             }
         }
+        CropMode::DetectOnly => {
+            // Detect face bounds without cropping the image
+            let face = detect_face(image, detector);
+            CropResult {
+                image: image.clone(),
+                face_bounds: face,
+                crop_offset: (0, 0),
+            }
+        }
     }
 }
 
@@ -736,6 +745,78 @@ mod tests {
         assert!(
             result.face_bounds.is_none(),
             "face_bounds should be None for CropMode::None"
+        );
+    }
+
+    #[test]
+    fn detect_only_with_face_returns_bounds_no_crop() {
+        let png = make_test_png(200, 300);
+        let detector = MockDetector::with_face(70.0, 100.0, 60.0, 60.0);
+        let result = compress_pipeline(
+            &png,
+            48,
+            0.6,
+            false,
+            &CropMode::DetectOnly,
+            &OutputFormat::Webp,
+            2.0,
+            Some(&detector),
+        )
+        .unwrap();
+        // Image is not cropped — output dimensions match CropMode::None
+        let none_result = compress_pipeline(
+            &png,
+            48,
+            0.6,
+            false,
+            &CropMode::None,
+            &OutputFormat::Webp,
+            2.0,
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.width, none_result.width);
+        assert_eq!(result.height, none_result.height);
+        // Face bounds should be present
+        assert!(
+            result.face_bounds.is_some(),
+            "face_bounds should be populated in DetectOnly when a face is found"
+        );
+    }
+
+    #[test]
+    fn detect_only_without_face_returns_no_bounds_no_crop() {
+        let png = make_test_png(200, 300);
+        let detector = MockDetector::empty();
+        let result = compress_pipeline(
+            &png,
+            48,
+            0.6,
+            false,
+            &CropMode::DetectOnly,
+            &OutputFormat::Webp,
+            2.0,
+            Some(&detector),
+        )
+        .unwrap();
+        // Image is not cropped — same dimensions as CropMode::None
+        let none_result = compress_pipeline(
+            &png,
+            48,
+            0.6,
+            false,
+            &CropMode::None,
+            &OutputFormat::Webp,
+            2.0,
+            None,
+        )
+        .unwrap();
+        assert_eq!(result.width, none_result.width);
+        assert_eq!(result.height, none_result.height);
+        // No face found — no face_bounds, no heuristic fallback
+        assert!(
+            result.face_bounds.is_none(),
+            "face_bounds should be None in DetectOnly when no face is found"
         );
     }
 

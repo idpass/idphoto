@@ -36,6 +36,7 @@ class CropMode(str, Enum):
     HEURISTIC = "heuristic"
     NONE = "none"
     FACE_DETECTION = "face-detection"
+    DETECT_ONLY = "detect-only"
 
 
 class OutputFormat(str, Enum):

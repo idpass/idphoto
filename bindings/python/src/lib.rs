@@ -58,6 +58,7 @@ fn string_to_crop_mode(mode: &str) -> PyResult<CropMode> {
         "heuristic" => Ok(CropMode::Heuristic),
         "none" => Ok(CropMode::None),
         "face-detection" => Ok(CropMode::FaceDetection),
+        "detect-only" => Ok(CropMode::DetectOnly),
         _ => Err(PyValueError::new_err(format!("unknown crop mode: {mode}"))),
     }
 }

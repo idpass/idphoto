@@ -44,6 +44,13 @@ pub enum CropMode {
     /// Use face detection to center on the face, with fallback to Heuristic.
     FaceDetection,
 
+    /// Detect faces and report bounds, but do not crop the image.
+    ///
+    /// When a face is found, `face_bounds` is populated and the image is
+    /// returned uncropped. When no face is found, `face_bounds` is `None`
+    /// and the image is returned uncropped (no heuristic fallback).
+    DetectOnly,
+
     /// No crop — resize maintaining the original aspect ratio.
     None,
 }

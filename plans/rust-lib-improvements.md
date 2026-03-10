@@ -195,6 +195,6 @@ Add `DETECT_ONLY = "detect-only"` to the `CropMode` enum.
 - [x] 3.2 Update `compress_to_fit` to use prep-then-encode pattern
 
 ### Phase 4: CropMode::DetectOnly
-- [ ] 4.1 Add DetectOnly variant to CropMode and apply_crop (no fallback to heuristic)
-- [ ] 4.2 Expose "detect-only" in Python bindings (Rust + Python enum)
-- [ ] 4.3 Add Rust tests for DetectOnly with face found and no face found
+- [x] 4.1 Add DetectOnly variant to CropMode and apply_crop (no fallback to heuristic)
+- [x] 4.2 Expose "detect-only" in Python bindings (Rust + Python enum)
+- [x] 4.3 Add Rust tests for DetectOnly with face found and no face found
