@@ -186,9 +186,9 @@ Add `DETECT_ONLY = "detect-only"` to the `CropMode` enum.
 - [x] 1.2 Bump workspace rust-version to 1.80, verify tests pass
 
 ### Phase 2: Square crop for matching
-- [ ] 2.1 Conditional aspect ratio in all three uses within `compute_face_crop`
-- [ ] 2.2 Update `resize_image` comment about square crops
-- [ ] 2.3 Add test for 1:1 aspect when face_margin=1.3, verify 3:4 test still passes
+- [x] 2.1 Conditional aspect ratio in all three uses within `compute_face_crop`
+- [x] 2.2 Update `resize_image` comment about square crops
+- [x] 2.3 Add test for 1:1 aspect when face_margin=1.3, verify 3:4 test still passes
 
 ### Phase 3: Split compress_to_fit
 - [ ] 3.1 Extract `PreparedImage`, `prepare_image`, `encode_prepared` (all pub(crate))

@@ -56,7 +56,11 @@ fn detect_face(image: &DynamicImage, detector: Option<&dyn FaceDetector>) -> Opt
     })
 }
 
-/// Compute the 3:4 portrait crop region centered on a detected face.
+/// Compute a crop region centered on a detected face.
+///
+/// For tight margins (`face_margin < 1.5`), the crop is 1:1 (square), which
+/// maximizes face pixels for recognition models that take square input.
+/// For wider margins, the crop is 3:4 portrait (face + hair + shoulders).
 ///
 /// `face_margin` controls framing: 2.0 = ID photo (face + hair + shoulders),
 /// 1.3 = tight face crop for algorithmic matching.
@@ -70,23 +74,26 @@ fn compute_face_crop(
     let face_cy = face.y + face.height / 2.0;
     let face_h = face.height;
 
+    // Square crop for matching mode (face recognition models take 112x112 input),
+    // 3:4 portrait for ID-photo mode.
+    let aspect = if face_margin < 1.5 { 1.0 } else { 3.0 / 4.0 };
+
     // Size the crop relative to the face.
-    let portrait_aspect = 3.0 / 4.0;
     let desired_crop_h = (face_h * face_margin as f64).round();
-    let desired_crop_w = (desired_crop_h * portrait_aspect).round();
+    let desired_crop_w = (desired_crop_h * aspect).round();
 
     // Clamp to image bounds — the crop can't exceed the source dimensions
     let crop_h = (desired_crop_h as u32).min(image_height);
     let crop_w = (desired_crop_w as u32).min(image_width);
 
-    // Ensure 3:4 aspect is maintained after clamping
-    let (crop_w, crop_h) = if (crop_w as f64 / crop_h as f64) > portrait_aspect {
+    // Ensure the target aspect is maintained after clamping
+    let (crop_w, crop_h) = if (crop_w as f64 / crop_h as f64) > aspect {
         // Too wide for the height — reduce width
-        let w = (crop_h as f64 * portrait_aspect).round() as u32;
+        let w = (crop_h as f64 * aspect).round() as u32;
         (w, crop_h)
     } else {
         // Too tall for the width — reduce height
-        let h = (crop_w as f64 / portrait_aspect).round() as u32;
+        let h = (crop_w as f64 / aspect).round() as u32;
         (crop_w, h)
     };
 
@@ -186,6 +193,7 @@ pub(crate) fn resize_image(image: &DynamicImage, max_dimension: u32) -> DynamicI
     };
 
     // For CropMode::Heuristic, the aspect is 3:4 so height > width.
+    // For FaceDetection with tight face_margin (< 1.5), the crop is 1:1 (square).
     // For CropMode::None, the aspect is preserved from the original.
     image.resize_exact(new_w, new_h, FilterType::Lanczos3)
 }
@@ -741,6 +749,23 @@ mod tests {
         assert!(
             (aspect - 0.75).abs() < 0.02,
             "crop aspect should be ~3:4, got {aspect}"
+        );
+    }
+
+    #[test]
+    fn compute_face_crop_produces_square_for_tight_margin() {
+        let face = FaceBounds {
+            x: 100.0,
+            y: 100.0,
+            width: 50.0,
+            height: 50.0,
+            confidence: 5.0,
+        };
+        let region = compute_face_crop(&face, 400, 600, 1.3);
+        let aspect = region.width as f64 / region.height as f64;
+        assert!(
+            (aspect - 1.0).abs() < 0.02,
+            "crop aspect should be ~1:1 for tight margin, got {aspect}"
         );
     }
 
