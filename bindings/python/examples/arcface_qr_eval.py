@@ -203,6 +203,11 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
         help="Download model automatically if missing (default: enabled)",
     )
     parser.add_argument(
+        "--model-sha256",
+        default=None,
+        help="Expected SHA-256 hex digest for model file integrity check.",
+    )
+    parser.add_argument(
         "--preset",
         default="qr-code-match",
         choices=["qr-code", "qr-code-match", "print", "display"],
@@ -533,7 +538,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = parse_args(argv)
     budgets = parse_budgets(args.max_bytes)
 
-    ensure_model(args.model_path, args.model_url, args.download_model)
+    ensure_model(args.model_path, args.model_url, args.download_model, args.model_sha256)
     providers = parse_providers(args.providers)
     session = ort.InferenceSession(str(args.model_path), providers=providers)
 

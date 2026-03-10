@@ -67,7 +67,12 @@ def parse_float_list(raw_value: str) -> List[float]:
     return values
 
 
-def ensure_model(model_path: Path, model_url: str, download_model: bool) -> None:
+def ensure_model(
+    model_path: Path,
+    model_url: str,
+    download_model: bool,
+    expected_sha256: Optional[str] = None,
+) -> None:
     if model_path.exists():
         return
     if not download_model:
@@ -75,9 +80,22 @@ def ensure_model(model_path: Path, model_url: str, download_model: bool) -> None
             f"Model not found at {model_path}. Re-run with --download-model."
         )
     model_path.parent.mkdir(parents=True, exist_ok=True)
+    tmp_path = model_path.with_suffix(model_path.suffix + ".tmp")
     print(f"Downloading model to {model_path} ...", file=sys.stderr)
-    with urllib.request.urlopen(model_url) as response, model_path.open("wb") as output:
-        shutil.copyfileobj(response, output)
+    try:
+        with urllib.request.urlopen(model_url) as response, tmp_path.open("wb") as output:
+            shutil.copyfileobj(response, output)
+        if expected_sha256 is not None:
+            actual = hashlib.sha256(tmp_path.read_bytes()).hexdigest()
+            if actual != expected_sha256.lower():
+                raise RuntimeError(
+                    f"SHA-256 mismatch for {model_path.name}: "
+                    f"expected {expected_sha256}, got {actual}"
+                )
+        tmp_path.rename(model_path)
+    except BaseException:
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def decode_rgb(data: bytes) -> Image.Image:
