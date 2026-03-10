@@ -21,9 +21,7 @@ fn to_py_err(e: IdPhotoError) -> PyErr {
         IdPhotoError::UnsupportedFormat => {
             UnsupportedFormatError::new_err("unsupported image format")
         }
-        IdPhotoError::ZeroDimensions => {
-            ZeroDimensionsError::new_err("image dimensions are zero")
-        }
+        IdPhotoError::ZeroDimensions => ZeroDimensionsError::new_err("image dimensions are zero"),
         IdPhotoError::EncodeError(msg) => {
             EncodeError::new_err(format!("failed to encode image: {msg}"))
         }
@@ -58,6 +56,7 @@ fn string_to_crop_mode(mode: &str) -> PyResult<CropMode> {
         "heuristic" => Ok(CropMode::Heuristic),
         "none" => Ok(CropMode::None),
         "face-detection" => Ok(CropMode::FaceDetection),
+        "face-bbox" => Ok(CropMode::FaceBbox),
         "detect-only" => Ok(CropMode::DetectOnly),
         _ => Err(PyValueError::new_err(format!("unknown crop mode: {mode}"))),
     }

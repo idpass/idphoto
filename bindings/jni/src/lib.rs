@@ -179,11 +179,10 @@ fn apply_options(
         Some(fmt) => compressor.format(fmt.into()),
         None => compressor,
     };
-    let compressor = match options.face_margin {
+    match options.face_margin {
         Some(margin) => compressor.face_margin(margin),
         None => compressor,
-    };
-    compressor
+    }
 }
 
 /// Returns a `CompressOptions` with all fields set to `None`,

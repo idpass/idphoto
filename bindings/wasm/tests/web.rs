@@ -85,10 +85,7 @@ fn all_presets_produce_valid_output() {
         let result = compress(png.clone(), opts).unwrap();
 
         let data = js_sys::Uint8Array::from(get_prop(&result, "data"));
-        assert!(
-            data.length() > 0,
-            "preset {preset} produced empty output"
-        );
+        assert!(data.length() > 0, "preset {preset} produced empty output");
         let width = get_prop(&result, "width").as_f64().unwrap() as u32;
         let height = get_prop(&result, "height").as_f64().unwrap() as u32;
         assert!(width > 0, "preset {preset} produced zero width");

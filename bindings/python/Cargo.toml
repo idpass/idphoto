@@ -13,8 +13,9 @@ crate-type = ["cdylib"]
 doc = false
 
 [features]
-default = []
+default = ["rustface", "yunet"]
 rustface = ["idphoto-core/rustface"]
+yunet = ["idphoto-core/yunet"]
 
 [dependencies]
 idphoto-core = { package = "idphoto", path = "../../core/idphoto" }
