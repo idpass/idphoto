@@ -1,3 +1,5 @@
+#[cfg(feature = "yunet")]
+use idphoto::YunetDetector;
 use idphoto::{CropMode, FaceBounds, FaceDetector, OutputFormat, PhotoCompressor, Preset};
 
 const FIXTURE_DIR: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/../../tests/fixtures");
@@ -348,6 +350,7 @@ impl MockDetector {
                 width,
                 height,
                 confidence: 10.0,
+                landmarks: None,
             }],
         }
     }
@@ -428,5 +431,118 @@ fn rustface_detector_can_be_used_directly() {
     assert!(
         result.face_bounds.is_some(),
         "explicit RustfaceDetector should detect a face"
+    );
+}
+
+#[cfg(feature = "yunet")]
+#[test]
+fn yunet_detects_face_in_sample() {
+    // Load the image as a grayscale buffer the same way the library does.
+    let input = load_fixture("sample_id_1.png");
+    let img = image::load_from_memory(&input).expect("fixture must decode");
+    let gray = image::imageops::grayscale(&img);
+
+    let detector = YunetDetector::new();
+    let faces = detector.detect(gray.as_raw(), gray.width(), gray.height());
+
+    assert!(
+        !faces.is_empty(),
+        "YuNet should detect at least one face in sample_id_1.png"
+    );
+}
+
+#[cfg(feature = "yunet")]
+#[test]
+fn yunet_landmarks_are_present_and_within_bounds() {
+    let input = load_fixture("sample_id_1.png");
+    let img = image::load_from_memory(&input).expect("fixture must decode");
+    let gray = image::imageops::grayscale(&img);
+    let (img_w, img_h) = (img.width() as f64, img.height() as f64);
+
+    let detector = YunetDetector::new();
+    let faces = detector.detect(gray.as_raw(), gray.width(), gray.height());
+
+    assert!(
+        !faces.is_empty(),
+        "need at least one face to check landmarks"
+    );
+
+    let face = &faces[0];
+    let lm = face
+        .landmarks
+        .as_ref()
+        .expect("YuNet should always populate landmarks");
+
+    // All landmark x coordinates must lie within the image width.
+    for (label, x, y) in [
+        ("right_eye", lm.right_eye.0, lm.right_eye.1),
+        ("left_eye", lm.left_eye.0, lm.left_eye.1),
+        ("nose", lm.nose.0, lm.nose.1),
+        ("right_mouth", lm.right_mouth.0, lm.right_mouth.1),
+        ("left_mouth", lm.left_mouth.0, lm.left_mouth.1),
+    ] {
+        assert!(
+            x >= 0.0 && x <= img_w,
+            "{label} x={x} out of image width {img_w}"
+        );
+        assert!(
+            y >= 0.0 && y <= img_h,
+            "{label} y={y} out of image height {img_h}"
+        );
+    }
+}
+
+#[cfg(feature = "yunet")]
+#[test]
+fn yunet_landmarks_spatial_order() {
+    // Eyes should be above (lower y) the nose, which should be above the mouth.
+    let input = load_fixture("sample_id_1.png");
+    let img = image::load_from_memory(&input).expect("fixture must decode");
+    let gray = image::imageops::grayscale(&img);
+
+    let detector = YunetDetector::new();
+    let faces = detector.detect(gray.as_raw(), gray.width(), gray.height());
+
+    assert!(
+        !faces.is_empty(),
+        "need at least one face to check ordering"
+    );
+
+    let face = &faces[0];
+    let lm = face
+        .landmarks
+        .as_ref()
+        .expect("YuNet should always populate landmarks");
+
+    let eye_y = (lm.right_eye.1 + lm.left_eye.1) / 2.0;
+    let nose_y = lm.nose.1;
+    let mouth_y = (lm.right_mouth.1 + lm.left_mouth.1) / 2.0;
+
+    assert!(
+        eye_y < nose_y,
+        "eyes (y={eye_y:.1}) should be above nose (y={nose_y:.1})"
+    );
+    assert!(
+        nose_y < mouth_y,
+        "nose (y={nose_y:.1}) should be above mouth (y={mouth_y:.1})"
+    );
+}
+
+#[cfg(feature = "yunet")]
+#[test]
+fn yunet_detector_via_compressor() {
+    let input = load_fixture("sample_id_1.png");
+    let result = PhotoCompressor::new(input)
+        .unwrap()
+        .face_detector(Box::new(YunetDetector::new()))
+        .crop_mode(CropMode::FaceDetection)
+        .max_dimension(48)
+        .compress()
+        .unwrap();
+
+    assert!(!result.data.is_empty());
+    assert!(
+        result.face_bounds.is_some(),
+        "YunetDetector used via PhotoCompressor should detect a face"
     );
 }
