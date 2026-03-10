@@ -21,7 +21,8 @@ def l2_normalize(vector: np.ndarray) -> np.ndarray:
     return vector / norm
 
 
-def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
+def cosine_similarity_normalized(a: np.ndarray, b: np.ndarray) -> float:
+    """Cosine similarity for L2-normalized vectors (equivalent to dot product)."""
     return float(np.dot(a, b))
 
 

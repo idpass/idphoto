@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 
 from eval_utils import (
-    cosine_similarity,
+    cosine_similarity_normalized,
     l2_distance,
     l2_normalize,
     parse_budgets,
@@ -51,17 +51,17 @@ class TestCosineSimilarity:
     def test_parallel_vectors(self):
         a = l2_normalize(np.array([1.0, 2.0, 3.0]))
         b = l2_normalize(np.array([2.0, 4.0, 6.0]))
-        assert abs(cosine_similarity(a, b) - 1.0) < 1e-6
+        assert abs(cosine_similarity_normalized(a, b) - 1.0) < 1e-6
 
     def test_orthogonal_vectors(self):
         a = l2_normalize(np.array([1.0, 0.0]))
         b = l2_normalize(np.array([0.0, 1.0]))
-        assert abs(cosine_similarity(a, b)) < 1e-6
+        assert abs(cosine_similarity_normalized(a, b)) < 1e-6
 
     def test_antiparallel_vectors(self):
         a = l2_normalize(np.array([1.0, 0.0]))
         b = l2_normalize(np.array([-1.0, 0.0]))
-        assert abs(cosine_similarity(a, b) - (-1.0)) < 1e-6
+        assert abs(cosine_similarity_normalized(a, b) - (-1.0)) < 1e-6
 
 
 class TestL2Distance:

@@ -24,7 +24,7 @@ import onnxruntime as ort
 from PIL import Image
 
 from eval_utils import (
-    cosine_similarity,
+    cosine_similarity_normalized,
     decode_rgb,
     ensure_model,
     image_to_model_tensor,
@@ -605,7 +605,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
                 aligner=aligner,
                 args=args,
             )
-            cosine = cosine_similarity(baseline_embedding, variant_embedding)
+            cosine = cosine_similarity_normalized(baseline_embedding, variant_embedding)
             distance = l2_distance(baseline_embedding, variant_embedding)
             byte_count = len(variant.data)
 
