@@ -1,23 +1,27 @@
+use std::sync::LazyLock;
+
 use crate::face_detector::{FaceBounds, FaceDetector};
+
+/// Parsed SeetaFace model, loaded once from the bundled binary data.
+static SEETAFACE_MODEL: LazyLock<rustface::Model> = LazyLock::new(|| {
+    let model_data: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../../model/seeta_fd_frontal_v1.0.bin"
+    ));
+    rustface::read_model(std::io::Cursor::new(model_data))
+        .expect("failed to load bundled SeetaFace model")
+});
 
 /// Face detector backed by the `rustface` crate (SeetaFace engine).
 ///
-/// Loads the bundled SeetaFace model on construction. The model is embedded
-/// in the binary via `include_bytes!`, so no external files are needed at runtime.
-pub struct RustfaceDetector {
-    model: rustface::Model,
-}
+/// The bundled SeetaFace model is parsed once (on first use) and cached
+/// in a process-wide static. Construction is free after the first call.
+pub struct RustfaceDetector;
 
 impl RustfaceDetector {
     /// Create a new detector with the bundled SeetaFace model.
     pub fn new() -> Self {
-        let model_data: &[u8] = include_bytes!(concat!(
-            env!("CARGO_MANIFEST_DIR"),
-            "/../../model/seeta_fd_frontal_v1.0.bin"
-        ));
-        let model = rustface::read_model(std::io::Cursor::new(model_data))
-            .expect("failed to load bundled SeetaFace model");
-        Self { model }
+        Self
     }
 }
 
@@ -29,7 +33,7 @@ impl Default for RustfaceDetector {
 
 impl FaceDetector for RustfaceDetector {
     fn detect(&self, gray: &[u8], width: u32, height: u32) -> Vec<FaceBounds> {
-        let mut detector = rustface::create_detector_with_model(self.model.clone());
+        let mut detector = rustface::create_detector_with_model(SEETAFACE_MODEL.clone());
         detector.set_min_face_size(20);
         detector.set_score_thresh(2.0);
         detector.set_pyramid_scale_factor(0.8);
